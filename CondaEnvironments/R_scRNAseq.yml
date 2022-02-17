@@ -1,4 +1,4 @@
-name: R_scRNAseq4
+name: R_scRNAseq
 channels:
   - bioconda
   - conda-forge
@@ -475,4 +475,3 @@ dependencies:
   - zeromq=4.3.4=h9c3ff4c_0
   - zlib=1.2.11=h516909a_1010
   - zstd=1.4.9=ha95c52a_0
-prefix: /data/leuven/333/vsc33329/jupyter/envs/R_scRNAseq4
