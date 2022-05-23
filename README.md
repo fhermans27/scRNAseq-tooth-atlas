@@ -11,6 +11,10 @@ This repository contains the R and Python code used perform the single-cell RNA-
   - [Initial Integration on three groups](#initial-integration-on-three-groups)
   - [Removal of background or ambient RNA using SoupX](#removal-of-background-or-ambient-rna-using-soupx)
   - [rPCA integration of all data](#rpca-integration-of-all-data)
+  - [Nebulosa and Module Score analysis](#nebulosa-and-module-score-analysis)
+  - [DEG Analysis](#deg-analysis-mta)
+  - [Analysis of GRNs using pySCENIC](#analysis-of-grns-using-pyscenic)
+  - [Inference of LR interactions using CellPhoneDB](#inference-of-lr-interactions-using-cellphonedb)
 
 - [Human Tooth Atlas](#human-tooth-atlas)
   - [Setup](#hta-setup)
@@ -567,7 +571,15 @@ integrated <- RenameIdents(integrated,
                            `88` = "sAB", `89` = "Endothelial")
 ```
 
-# Human Tooth Atlas (HTA)
+## Nebulosa and Module Score analysis
+
+## DEG Analysis MTA
+
+## Analysis of GRNs using pySCENIC
+
+## Inference of LR interactions using CellPhoneDB
+
+# Human Tooth Atlas
 
 ## HTA Setup
 
