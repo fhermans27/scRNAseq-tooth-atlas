@@ -5,15 +5,19 @@ This repository contains the R and Python code used perform the single-cell RNA-
 *add publication*
 
 # Table of contents
-- Mouse Tooth Atlas (MTA)
-  - Setup
-  - Quality Control
-  - Initial integration on 3 groups (incisors, molars, periodontal) using Seurat's standard workflow
-  - Removal of background/ambient RNA using SoupX (on groups)
-  - Integration of 3 groups and cell cycle regression using Seurat's reciprocal PCA (rPCA) workflow 
+- [Mouse Tooth Atlas](#mouse-tooth-atlas)
+  - [Setup](#mta-setup)
+  - [Quality Control](#mta-quality-control)
+  - [Initial Integration on three groups](#initial-integration-on-three-groups)
+  - [Removal of background or ambient RNA using SoupX](#removal-of-background-or-ambient-rna-using-soupx)
+  - [rPCA integration of all data](#rpca-integration-of-all-data)
 
-# Mouse Tooth Atlas (MTA)
-## Setup
+- [Human Tooth Atlas](#human-tooth-atlas)
+  - [Setup](#hta-setup)
+  - [Quality Control](#hta-quality-control)
+
+# Mouse Tooth Atlas
+## MTA Setup
 
 ```
 suppressMessages({
@@ -49,7 +53,7 @@ set.seed(27011995)
 })
 ```
 
-## Quality Control
+## MTA Quality Control
 ```
 # Perform QC individually
 Chiba <- subset(Chiba, subset = nFeature_RNA > 1500 & nFeature_RNA < 6000 & percent.mito < 5 & nCount_RNA < 40000)
@@ -69,7 +73,8 @@ Zhao_2 <- subset(Zhao_2, subset = nFeature_RNA > 1000 & nFeature_RNA < 7000 & pe
 merged_final_qc <- merge(x = Chiba, y = c(Takahashi, Sharir, Krivanek_incisors, Krivanek_molars, Chen, Wen, Chiba_2_epi, Chiba_2_mes, Nagata, Zhao_1, Zhao_2))
 ```
 
-## Initial integration on groups (incisors, molars, periodontal), using 'standard Seurat integration workflow'
+## Initial Integration on three groups 
+(incisors, molars, periodontal), using 'standard Seurat integration workflow'
 
 ```
 # Merge into the new objects
@@ -219,7 +224,7 @@ molars_integrated$Split_Clusters_2 <- Idents(molars_integrated)
 periodontal_integrated$Split_Clusters_2 <- Idents(periodontal_integrated)
 ```
 
-## Removal of background/ambient RNA using SoupX
+## Removal of background or ambient RNA using SoupX
 ```
 #Change from integrated to RNA, otherwise next command will fail
 DefaultAssay(incisors_integrated) <- "RNA"
@@ -364,7 +369,8 @@ periodontal_integrated <- ScaleData(periodontal_integrated, verbose = FALSE)
 merged <- merge(x =incisors_integrated, y = c(molars_integrated, periodontal_integrated))
 ```
 
-## Integration of 3 groups and cell cycle regression using Seurat's reciprocal PCA (rPCA) workflow 
+## rPCA integration of all data
+Integration of 3 groups and cell cycle regression using Seurat's reciprocal PCA (rPCA) workflow 
 ```
 xxx add mouse genes conversion
 ```
@@ -562,5 +568,9 @@ integrated <- RenameIdents(integrated,
 ```
 
 # Human Tooth Atlas (HTA)
+
+## HTA Setup
+
+## HTA Quality Control
 
 
