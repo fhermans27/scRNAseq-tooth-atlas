@@ -965,7 +965,7 @@ Next, make a rows.txt and columns.txt file with the L/R pairs and cluster-cluste
 
 ```
 # Example for incisor group, same done for molar/periodontal groups
-cellphonedb plot dot_plot '
+cellphonedb plot dot_plot 
   --means-path=./CellPhoneDB/MTA_incisor/means.txt 
   --pvalues-path=./CellPhoneDB/MTA_incisor/pvalues.txt 
   --rows ./CellPhoneDB/MTA_incisor/rows.txt 
