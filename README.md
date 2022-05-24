@@ -15,6 +15,7 @@ This repository contains the R and Python code used perform the single-cell RNA-
   - [DEG Analysis](#deg-analysis-mta)
   - [Analysis of GRNs using pySCENIC](#analysis-of-grns-using-pyscenic)
   - [Inference of LR interactions using CellPhoneDB](#inference-of-lr-interactions-using-cellphonedb)
+  - [Subclustering of mouse epithelial clusters (focus on ameloblast lineage)](#subclustering-of-mouse-epithelium)
 
 - [Human Tooth Atlas](#human-tooth-atlas)
   - [Setup](#hta-setup)
@@ -858,7 +859,7 @@ plot.list <- list()
 
 for (i in 1:length(DESC_features)) {
     options(repr.plot.width=12, repr.plot.height=12)
-    plot.list[[i]] <- FeaturePlot(seu, reduction = "umap_50dims", features = DESC_features[i], pt.size = 1, cols = (c("lightgrey", "steelblue", "blue4")))
+    plot.list[[i]] <- FeaturePlot(integrated, reduction = "umap_50dims", features = DESC_features[i], pt.size = 1, cols = (c("lightgrey", "steelblue", "blue4")))
     print(plot.list[[i]])
 }
 ```
@@ -972,6 +973,284 @@ cellphonedb plot dot_plot
   --columns ./CellPhoneDB/MTA_incisor/columns.txt 
   --output-path=./CellPhoneDB/MTA_incisor/ 
   --output-name=cpdb_MTA_incisor_dotplot.pdf
+```
+
+## Subclustering of Mouse Epithelium
+Here we focus on the ameloblast lineage trajectory, starting from the IEE/OEE cluster. 
+
+### Setup
+```
+mouse_epithelial <- subset(x = mta, idents = c("sAB", "mAB", "preAB", "DEP", "Cycling DEP", "IEE/OEE"))
+
+DefaultAssay(mouse_epithelial) <- "SoupX"
+
+mouse_epithelial[['integrated']] <- NULL
+mouse_epithelial[['RNA']] <- NULL
+mouse_epithelial <- RenameAssays(object = mouse_epithelial, SoupX = 'RNA')
+```
+
+We divide the datasets into 3 groups (if we would integrate on the datasets, as we did before, it wouldn't work due to too few cells for some datasets). By dividing the datasets into three groups (where we tried to group them based on biological similarity) we circumvent this problem and are able to integrate the data. 
+
+```
+# Divide epithelial data into 3 groups to enable integration
+Idents(mouse_epithelial) <- mouse_epithelial@meta.data$Dataset
+
+mouse_epithelial <- RenameIdents(mouse_epithelial, `Krivanek_molar` = "Group3", `Zhao_perio_1` = "Group3", 
+                    `Zhao_perio_2` = "Group3", `Krivanek_incisor` = "Group3", `Nagata` = "Group3",
+                    `Chen` = "Group4", `Chiba` = "Group5", `Chiba_2_epithelium` = "Group6", `Chiba_2_mesenchyme` = "Group7", 
+                    `Sharir` = "Group8", `Takahashi` = "Group3", `Wen` = "Group3")
+
+mouse_epithelial@meta.data$Integration_Groups <- Idents(mouse_epithelial)
+```
+
+### Integration
+```
+# As done before using rPCA
+tooth.list <- SplitObject(mouse_epithelial, split.by = "Integration_Groups")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+})
+
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE) # approx = false https://github.com/satijalab/seurat/issues/1963
+})
+
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+epi_integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+
+DefaultAssay(epi_integrated) <- "epi_integrated"
+
+epi_integrated <- ScaleData(epi_integrated, verbose = FALSE)
+epi_integrated <- RunPCA(epi_integrated, verbose = FALSE)
+```
+
+```
+# Run UMAP for different dimensions, save to object separately to be able to compare
+
+epi_integrated <- RunUMAP(epi_integrated, umap.method = "umap-learn", dims = 1:10)
+umap_dims <- epi_integrated@reductions$umap@cell.embeddings
+epi_integrated[["umap_10dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP10_", assay = DefaultAssay(epi_integrated))
+
+epi_integrated <- RunUMAP(epi_integrated, umap.method = "umap-learn", dims = 1:20)
+umap_dims <- epi_integrated@reductions$umap@cell.embeddings
+epi_integrated[["umap_20dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP20_", assay = DefaultAssay(epi_integrated))
+
+epi_integrated <- RunUMAP(epi_integrated, umap.method = "umap-learn", dims = 1:30)
+umap_dims <- epi_integrated@reductions$umap@cell.embeddings
+epi_integrated[["umap_30dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP30_", assay = DefaultAssay(epi_integrated))
+
+epi_integrated <- RunUMAP(epi_integrated, umap.method = "umap-learn", dims = 1:40)
+umap_dims <- epi_integrated@reductions$umap@cell.embeddings
+epi_integrated[["umap_40dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP40_", assay = DefaultAssay(epi_integrated))
+
+epi_integrated <- RunUMAP(epi_integrated, umap.method = "umap-learn", dims = 1:50)
+umap_dims <- epi_integrated@reductions$umap@cell.embeddings
+epi_integrated[["umap_50dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP50_", assay = DefaultAssay(epi_integrated))
+```
+
+By plotting the metadata, prior cluster annotation and marker genes we selected umap_40dims for further downstream analyses.
+
+### Redo Nebulosa and Module Score analysis on subclustered epithelium
+```
+DefaultAssay(epi_integrated) <- "SoupX"
+options(repr.plot.width=12, repr.plot.height=12)
+```
+
+```
+# Gene expression of DESC genes
+DESC_features <- list(c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'))
+
+plot.list <- list()
+
+for (i in 1:length(DESC_features)) {
+    options(repr.plot.width=12, repr.plot.height=12)
+    plot.list[[i]] <- FeaturePlot(epi_integrated, reduction = "umap_40dims", features = DESC_features[i], pt.size = 1, cols = (c("lightgrey", "steelblue", "blue4")))
+    print(plot.list[[i]])
+}
+```
+
+```
+# DESC Module with AddModuleScore (Seurat)
+
+DESC_features <- list(c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'))
+
+epi_integrated <- AddModuleScore(
+  object = epi_integrated,
+  features = DESC_features,
+  ctrl = 5,
+  name = 'DESC_features',
+    assay = "SoupX"
+)
+
+FeaturePlot(epi_integrated, reduction = "umap_40dims", features = "DESC_features1", pt.size = 1, cols = (c("lightgrey", "steelblue", "blue4")))
+```
+
+```
+# DESC (joint) densities with Nebulosa
+p_list <- plot_density(epi_integrated, c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'),
+  joint = TRUE, combine = FALSE)
+  
+p_list[[length(p_list)]]
+```
+
+### Pseudotime analysis on subclustered epithelium using Monocle3
+First we manually create the cds object required for Monocle3, from our Seurat object
+
+```
+### Building the necessary parts for a basic cds
+# part one, gene annotations
+gene_annotation <- as.data.frame(rownames(epi_integrated@reductions[["pca"]]@feature.loadings), row.names = rownames(epi_integrated@reductions[["pca"]]@feature.loadings))
+colnames(gene_annotation) <- "gene_short_name"
+# part two, cell information
+cell_metadata <- as.data.frame(epi_integrated@assays[["RNA"]]@counts@Dimnames[[2]], row.names = epi_integrated@assays[["RNA"]]@counts@Dimnames[[2]])
+colnames(cell_metadata) <- "barcode"
+# part three, counts sparse matrix
+New_matrix <- epi_integrated@assays[["RNA"]]@counts
+New_matrix <- New_matrix[rownames(epi_integrated@reductions[["pca"]]@feature.loadings), ]
+expression_matrix <- New_matrix
+#Cluster information
+list_cluster <- epi_integrated@meta.data[[sprintf("Annotation")]]
+names(list_cluster) <- epi_integrated@assays[["RNA"]]@data@Dimnames[[2]]
+#UMAP coordinates
+umap <- epi_integrated@reductions[["umap_40dims"]]@cell.embeddings
+#Feature loadings
+feature_loadings <- epi_integrated@reductions[["pca"]]@feature.loadings
+
+
+# Make the CDS object
+cds_from_seurat <- new_cell_data_set(expression_matrix,
+                                     cell_metadata = cell_metadata,
+                                     gene_metadata = gene_annotation)
+
+### Construct and assign the made up partition
+
+recreate.partition <- c(rep(1, length(cds_from_seurat@colData@rownames)))
+names(recreate.partition) <- cds_from_seurat@colData@rownames
+recreate.partition <- as.factor(recreate.partition)
+
+cds_from_seurat@clusters@listData[["UMAP"]][["partitions"]] <- recreate.partition
+
+### Assign the cluster info
+cds_from_seurat@clusters@listData[["UMAP"]][["clusters"]] <- list_cluster
+
+### Could be a space-holder, but essentially fills out louvain parameters
+cds_from_seurat@clusters@listData[["UMAP"]][["louvain_res"]] <- "NA"
+
+# Assign UMAP coordinates
+cds_from_seurat@int_colData@listData$reducedDims@listData[["UMAP"]] <- umap
+
+#Assign feature loading for downstream module analysis
+cds_from_seurat@preprocess_aux$gene_loadings <- feature_loadings
+
+#Learn graph
+cds_from_seurat <- learn_graph(cds_from_seurat, use_partition = T)
+```
+
+```
+colData(cds_from_seurat)$new_clusters <- as.character(cds_from_seurat@clusters@listData[["UMAP"]][["clusters"]])
+
+# Select a cluster and collect unique vertex information for cells in that cluster to start pseudotime manually
+root_group = colnames(cds_from_seurat)[pData(cds_from_seurat)$new_clusters == "IEE/OEE"] # We start from IEE/OEE, the putative stem cell region
+closest_vertex = cds_from_seurat@principal_graph_aux[['UMAP']]$pr_graph_cell_proj_closest_vertex
+root_pr_nodes = paste("Y_", closest_vertex[root_group,], sep="")
+unique_nodes = unique(root_pr_nodes)
+unique_nodes
+unique_nodes <- as.vector(unique_nodes) # this manually prints a list of nodes, by trial and error we identify the node at the root of our trajectory
+```
+
+```
+# Input the manually identified root node to order cells and calculate pseudotime
+cds_from_seurat = order_cells(cds_from_seurat, root_pr_nodes = c('Y_52'))
+```
+
+```
+# Plot results
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- plot_cells(cds_from_seurat, 
+                color_cells_by = 'cluster',
+                label_groups_by_cluster=FALSE,
+                label_leaves=FALSE,
+                label_branch_points=FALSE,
+                cell_size = 1.25,
+                 label_roots = FALSE,
+                group_label_size = 5)
+p2 <- plot_cells(cds_from_seurat,
+           color_cells_by = "pseudotime",
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           label_roots = FALSE,
+           cell_size = 1.25,
+           graph_label_size=5)
+p1+p2
+```
+
+```
+# Extract pseudotime values and add to Seurat object
+epi_integrated <- AddMetaData(
+  object = epi_integrated,
+  metadata = cds_from_seurat@principal_graph_aux@listData$UMAP$pseudotime,
+  col.name = "Epi_pseudotime"
+)
+```
+
+Next, we calculate DEGs along pseudotime using the method of [Jevitt, A. et al., PLOS Biology (2020) ](https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.3000538), as described on their [GitHub page](https://github.com/crickbabs/ZebrafishDevelopingHindbrainAtlas#trajectory-analysis)
+```
+#Calculate DEGs along pseudotime
+pr_graph_test_res <- graph_test(cds_from_seurat, neighbor_graph="principal_graph", cores=1, verbose = FALSE) # Group relative to pseudotime
+hits      <- as.data.frame(pr_graph_test_res[pr_graph_test_res$gene_short_name,])
+hits$pass <- hits$morans_I > 0.1 & hits$q_value < 0.01
+
+write.table(hits,file="./genes_changing_with_pseudotime.txt",col.names=T,row.names=F,sep="\t",quote=F)
+genes <- read.delim("./changing_with_pseudotime.txt",header=T,sep="\t",stringsAsFactors=F)[,5] #extract list of genes identified
+```
+
+```
+# Intersect identified genes with matrix, z-score normalization of expression
+pt.matrix <- as.matrix(cds_from_seurat@assays@data$counts[match(genes,rowData(cds_from_seurat)[,1]),order(pseudotime(cds_from_seurat))])
+pt.matrix <- t(apply(pt.matrix,1,function(x){smooth.spline(x,df=3)$y}))
+pt.matrix <- t(apply(pt.matrix,1,function(x){(x-mean(x))/sd(x)}))
+rownames(pt.matrix) <- genes
+save(pt.matrix, file="matrix.Rdata")
+```
+
+
+We have a separate Conda environment containing the ComplexHeatmap package (R_heatmap xxx)
+```
+#Setup environment
+#set working directory
+setwd("./MTA")
+
+#load in required software packages
+suppressPackageStartupMessages({
+library(ComplexHeatmap)
+library(circlize)
+library(RColorBrewer)
+library(magick)
+})
+
+load("matrix.Rdata")
+```
+
+```
+# Create pseudotime heatmap
+options(repr.plot.width=7, repr.plot.height=7)
+ht <- Heatmap(
+  pt.matrix,
+  name                         = "z-score",
+  col                          = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
+  show_row_names               = TRUE,
+  show_column_names            = FALSE,
+  row_names_gp                 = gpar(fontsize = 6),
+  split                        = split,
+  row_title_rot                = 0,
+  cluster_row_slices           = FALSE,
+  cluster_columns              = FALSE
+  raster_by_magick             = TRUE)
+print(ht)
 ```
 
 # Human Tooth Atlas
