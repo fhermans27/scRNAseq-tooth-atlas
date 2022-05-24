@@ -666,7 +666,7 @@ mm.trans=mm.trans[,!(names(mm.trans) %in% c("Row.names","hg19"))]
 #write.table(mm.trans, "./incisor_cpdb_count.txt", sep="\t", quote=F)
 
 # generating meta file
-meta_data <- cbind(rownames(incisors@meta.data), incisors@meta.data[,"Annotation", drop=F])   # cluster is the user’s specific cluster column
+meta_data <- cbind(rownames(incisors@meta.data), incisors@meta.data[,"Annotation", drop=F])
 #write.table(meta_data, "./incisor_cpdb_meta.txt", sep="\t", quote=F, row.names=F)
 ```
 
