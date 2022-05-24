@@ -572,12 +572,121 @@ integrated <- RenameIdents(integrated,
 ```
 
 ## Nebulosa and Module Score analysis
+```
+DefaultAssay(integrated) <- "SoupX"
+options(repr.plot.width=12, repr.plot.height=12)
+```
+
+```
+# Gene expression of DESC genes
+DESC_features <- list(c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'))
+
+plot.list <- list()
+
+for (i in 1:length(DESC_features)) {
+    options(repr.plot.width=12, repr.plot.height=12)
+    plot.list[[i]] <- FeaturePlot(seu, reduction = "umap_50dims", features = DESC_features[i], pt.size = 1, cols = (c("lightgrey", "steelblue", "blue4")))
+    print(plot.list[[i]])
+}
+```
+
+```
+# DESC Module with AddModuleScore (Seurat)
+
+DESC_features <- list(c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'))
+
+integrated <- AddModuleScore(
+  object = integrated,
+  features = DESC_features,
+  ctrl = 5,
+  name = 'DESC_features',
+    assay = "SoupX"
+)
+
+FeaturePlot(integrated, reduction = "umap_50dims", features = "DESC_features1", pt.size = 1, cols = (c("lightgrey", "steelblue", "blue4")))
+```
+
+```
+# DESC (joint) densities with Nebulosa
+p_list <- plot_density(seu, c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'),
+  joint = TRUE, combine = FALSE)
+  
+p_list[[length(p_list)]]
+```
 
 ## DEG Analysis MTA
+```
+DefaultAssay(integrated) <- "SoupX"
+```
+
+```
+all.markers <- FindAllMarkers(object = integrated,
+                             logfc.threshold = 0.5, #default = 0.25
+                             min.pct = 0.25) # default = 0.1
+```                                                
 
 ## Analysis of GRNs using pySCENIC
 
 ## Inference of LR interactions using CellPhoneDB
+First we divide the established MTA into our three groups (incisors, molars, periodontal). Then we convert the mouse gene names to human gene names (required for CellphoneDB) using the Homologene table from [Hart, R., BioRxiv (2019)](https://www.biorxiv.org/content/10.1101/671115v1)). Next, we extract the required data to run CellPhoneDB. Finally, we move to our Python Conda environment to run CellPhoneDB. 
+
+```
+# Split object into 3 groups
+split <- SplitObject(integrated, split.by = "Group")
+
+incisors <- split$Incisors
+molars <- split$Molar
+periodontal <- split$Periodontal
+```
+
+```
+# Load in Homologene table
+geneTrans=read.table("./geneTrans.txt",sep=",",header=T,stringsAsFactors = F,row.names = 1)
+
+geneTrans$hg19=gsub("hg19_","",geneTrans$hg19)
+geneTrans$mm10=gsub("mm10_","",geneTrans$mm10)
+row.names(geneTrans)=gsub("_","-",row.names(geneTrans))
+```
+Below is the code for the incisors. Replace with the other Seurat objects for the other groups. 
+```
+#extract counts
+mm.raw=GetAssayData(incisors,slot="counts") # replace with molars/periodontal to perform on the other groups.
+
+#subset rows in geneTrans (not necessary but simpler)
+mm.raw=mm.raw[row.names(mm.raw) %in% geneTrans$mm10,]
+
+#translate mouse symbols to human
+mm.trans=merge(x=mm.raw,y=geneTrans[,c(5,6)],by.x=0,by.y="mm10",all.x=T)
+rownames(mm.trans)=mm.trans$hg19
+mm.trans=mm.trans[,!(names(mm.trans) %in% c("Row.names","hg19"))]
+```
+
+```
+# Save converted gene names + normalized counts
+#write.table(mm.trans, "./incisor_cpdb_count.txt", sep="\t", quote=F)
+
+# generating meta file
+meta_data <- cbind(rownames(incisors@meta.data), incisors@meta.data[,"Annotation", drop=F])   # cluster is the user’s specific cluster column
+#write.table(meta_data, "./incisor_cpdb_meta.txt", sep="\t", quote=F, row.names=F)
+```
+
+For the next part of the CellPhoneDB analysis of Ligand-Receptor interactions in the MTA we use our Python Conda environment with the CellPhoneDB tool installed, and perform the analysis using the command line. 
+
+``` 
+conda activate py_cpdb
+```
+
+```
+# Example for incisor group, same done for molar/periodontal groups
+cellphonedb method statistical_analysis --counts-data=gene_name incisor_cpdb_meta.txt incisor_cpdb_count.txt --iterations=1000 --threshold=0.2 --threads=8 --output-path=CellPhoneDB --project-name=MTA_incisor --quiet
+```
+
+Next, make a rows.txt and columns.txt file with the L/R pairs and cluster-cluster pairs for further analysis. Run the CellPhoneDB plotting function for each group.
+
+```
+# Example for incisor group, same done for molar/periodontal groups
+cellphonedb plot dot_plot --means-path=./CellPhoneDB/MTA_incisor/means.txt --pvalues-path=./CellPhoneDB/MTA_incisor/pvalues.txt --rows ./CellPhoneDB/MTA_incisor/rows.txt --columns ./CellPhoneDB/MTA_incisor/columns.txt --output-path=./CellPhoneDB/MTA_incisor/ --output-name=cpdb_MTA_incisor_dotplot.pdf
+```
 
 # Human Tooth Atlas
 
