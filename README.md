@@ -631,7 +631,25 @@ merged <- merge(x =incisors_integrated, y = c(molars_integrated, periodontal_int
 ## rPCA integration of all data
 Integration of 3 groups and cell cycle regression using Seurat's reciprocal PCA (rPCA) workflow 
 ```
-xxx add mouse genes conversion
+# A list of cell cycle markers, from Tirosh et al, 2015, is loaded with Seurat.  We can segregate this list into markers of G2/M phase and markers of S phase. 
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+
+# These lists of S and G2M phase genes contain human gene names, so they must be converted to their mouse orthologues first. 
+#Basic function to convert human to mouse gene names using the biomaRt package
+convertHumanGeneList <- function(x){
+    require("biomaRt")
+    human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+    mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+    genesV2 = getLDS(attributes = c("hgnc_symbol"), filters = "hgnc_symbol", values = x , mart = human, attributesL = c("mgi_symbol"), martL = mouse, uniqueRows=T)
+    humanx <- unique(genesV2[, 2])
+    # Print the first 6 genes found to the screen
+    print(head(humanx))
+    return(humanx)
+    }
+
+s.genes <- convertHumanGeneList(s.genes)
+g2m.genes <- convertHumanGeneList(g2m.genes)
 ```
 
 ```
@@ -933,14 +951,27 @@ conda activate py_cpdb
 
 ```
 # Example for incisor group, same done for molar/periodontal groups
-cellphonedb method statistical_analysis --counts-data=gene_name incisor_cpdb_meta.txt incisor_cpdb_count.txt --iterations=1000 --threshold=0.2 --threads=8 --output-path=CellPhoneDB --project-name=MTA_incisor --quiet
+cellphonedb method statistical_analysis 
+  --counts-data=gene_name incisor_cpdb_meta.txt incisor_cpdb_count.txt 
+  --iterations=1000 
+  --threshold=0.2 
+  --threads=8 
+  --output-path=CellPhoneDB 
+  --project-name=MTA_incisor 
+  --quiet
 ```
 
 Next, make a rows.txt and columns.txt file with the L/R pairs and cluster-cluster pairs for further analysis. Run the CellPhoneDB plotting function for each group.
 
 ```
 # Example for incisor group, same done for molar/periodontal groups
-cellphonedb plot dot_plot --means-path=./CellPhoneDB/MTA_incisor/means.txt --pvalues-path=./CellPhoneDB/MTA_incisor/pvalues.txt --rows ./CellPhoneDB/MTA_incisor/rows.txt --columns ./CellPhoneDB/MTA_incisor/columns.txt --output-path=./CellPhoneDB/MTA_incisor/ --output-name=cpdb_MTA_incisor_dotplot.pdf
+cellphonedb plot dot_plot '
+  --means-path=./CellPhoneDB/MTA_incisor/means.txt 
+  --pvalues-path=./CellPhoneDB/MTA_incisor/pvalues.txt 
+  --rows ./CellPhoneDB/MTA_incisor/rows.txt 
+  --columns ./CellPhoneDB/MTA_incisor/columns.txt 
+  --output-path=./CellPhoneDB/MTA_incisor/ 
+  --output-name=cpdb_MTA_incisor_dotplot.pdf
 ```
 
 # Human Tooth Atlas
