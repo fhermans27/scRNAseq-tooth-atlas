@@ -57,8 +57,261 @@ set.seed(27011995)
 })
 ```
 
+Import all datasets, and add relevant metadata obtained from the publications. 
+
+```
+#Import data
+GSM4407907 <- Read10X(data.dir = "./Chiba")
+Chiba <- CreateSeuratObject(counts = GSM4407907, project = "GSM4407907", min.cells = 3, min.features = 200)
+
+GSM3393718 <- Read10X(data.dir = "./Takahashi")
+Takahashi <- CreateSeuratObject(counts = GSM3393718, project = "GSM3393718", min.cells = 3, min.features = 200)
+
+GSM3767568 <- Read10X(data.dir = "./Sharir")
+Sharir <- CreateSeuratObject(counts = GSM3767568, project = "GSM3767568", min.cells = 3, min.features = 200)
+
+FB1RKA6 <- Read10X(data.dir = "./Chen")
+Chen <- CreateSeuratObject(counts = FB1RKA6, project = "FB1RKA6", min.cells = 3, min.features = 200)
+
+FB1X3X8 <- Read10X(data.dir = "./Wen")
+Wen <- CreateSeuratObject(counts = FB1X3X8, project = "FB1X3X8", min.cells = 3, min.features = 200)
+
+GSM5121221 <- Read10X(data.dir = "./Chiba_2_epithelium")
+Chiba_2_epithelium <- CreateSeuratObject(counts = GSM5121221, project = "GSM5121221", min.cells = 3, min.features = 200)
+
+GSM5121222 <- Read10X(data.dir = "./Chiba_2_mesencyhme")
+Chiba_2_mesencyhme <- CreateSeuratObject(counts = GSM5121222, project = "GSM5121222", min.cells = 3, min.features = 200)
+
+GSM5140554 <- Read10X(data.dir = "./Nagata")
+Nagata <- CreateSeuratObject(counts = GSM5140554, project = "GSM5140554", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek mouse incisor data
+data = read.table(gzfile("./GSM4365604_counts_incisor_10x.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('X', '', colnames(data))
+colnames(data) <- gsub('\\.', '-', colnames(data))
+
+#Fix gene formatting
+rownames(data) <- str_to_title(rownames(data))
+
+#Create Seurat Object
+Krivanek_incisor_10x <- CreateSeuratObject(counts = data, project = "GSM4365604", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek mouse molar data 1
+data = read.table(gzfile("./GSM4365605_counts_molar_10x.1.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('X', '', colnames(data))
+colnames(data) <- gsub('\\.', '-', colnames(data))
+
+#Fix gene formatting
+rownames(data) <- str_to_title(rownames(data))
+
+#Create Seurat Object
+Krivanek_molar_10x_1 <- CreateSeuratObject(counts = data, project = "GSM4365605", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek mouse molar data 2
+data = read.table(gzfile("./GSM4365611_counts_molar_10x.2.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('X', '', colnames(data))
+colnames(data) <- gsub('\\.', '-', colnames(data))
+
+#Fix gene formatting
+rownames(data) <- str_to_title(rownames(data))
+
+#Create Seurat Object
+Krivanek_molar_10x_2 <- CreateSeuratObject(counts = data, project = "GSM4365611", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Zhao periodontal tissue 1
+data = read.table(gzfile("./GSM4872144_Data1.txt.gz"), sep="\t", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('SHAM.CTRL_', '', colnames(data))
+
+#Create Seurat Object
+Zhao_perio_1 <- CreateSeuratObject(counts = data, project = "GSM4872144", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Zhao periodontal tissue 2
+data2 = read.table(gzfile("./GSM4872145_Data2.txt.gz"), sep="\t", header = TRUE, row.names = NULL)
+
+names <- make.unique(data2$row.names)
+rownames(data2) <- names
+data2 <- data2[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data2) <- gsub('L120b_', '', colnames(data2))
+
+#Create Seurat Object
+Zhao_perio_2 <- CreateSeuratObject(counts = data2, project = "GSM4872145", min.cells = 3, min.features = 200)
+```
+
+```
+# Calculate % of mitochondrial genes per cell, and append this to the metadata
+Chiba[["percent.mito"]] <- PercentageFeatureSet(Chiba, pattern = "^mt-")
+Takahashi[["percent.mito"]] <- PercentageFeatureSet(Takahashi, pattern = "^mt-")
+Sharir[["percent.mito"]] <- PercentageFeatureSet(Sharir, pattern = "^mt-")
+Chen[["percent.mito"]] <- PercentageFeatureSet(Chen, pattern = "^mt-")
+Wen[["percent.mito"]] <- PercentageFeatureSet(Wen, pattern = "^mt-")
+Chiba_2_epithelium[["percent.mito"]] <- PercentageFeatureSet(Chiba_2_epithelium, pattern = "^mt-")
+Chiba_2_mesencyhme[["percent.mito"]] <- PercentageFeatureSet(Chiba_2_mesencyhme, pattern = "^mt-")
+Nagata[["percent.mito"]] <- PercentageFeatureSet(Nagata, pattern = "^mt-")
+Krivanek_incisor_10x[["percent.mito"]] <- PercentageFeatureSet(Krivanek_incisor_10x, pattern = "^Mt-")
+Krivanek_molar_10x_1[["percent.mito"]] <- PercentageFeatureSet(Krivanek_molar_10x_1, pattern = "^Mt-")
+Krivanek_molar_10x_2[["percent.mito"]] <- PercentageFeatureSet(Krivanek_molar_10x_2, pattern = "^Mt-")
+Zhao_perio_1[["percent.mito"]] <- PercentageFeatureSet(Zhao_perio_1, pattern = "^mt-")
+Zhao_perio_2[["percent.mito"]] <- PercentageFeatureSet(Zhao_perio_2, pattern = "^mt-")
+```
+
+```
+# Add extra metadata to Seurat object
+Chiba@meta.data$Dataset <- "Chiba_1"
+Chiba@meta.data$Age <- "PD7"
+Chiba@meta.data$Tooth_type <- "Incisors"
+Chiba@meta.data$Cell_source <- "Epithelial_and_mesenchyme"
+Chiba@meta.data$Genotype <- "Krt14-RFP"
+Chiba@meta.data$Technology <- "10X"
+
+Takahashi@meta.data$Dataset <- "Takahashi"
+Takahashi@meta.data$Age <- "PD6"
+Takahashi@meta.data$Tooth_type <- "Molars"
+Takahashi@meta.data$Cell_source <- "PTHrP-mCherry+_DF_cells"
+Takahashi@meta.data$Genotype <- "PTHrP-mCherry"
+Takahashi@meta.data$Technology <- "10X"
+
+Sharir@meta.data$Dataset <- "Sharir"
+Sharir@meta.data$Age <- "8-12weeks"
+Sharir@meta.data$Tooth_type <- "Incisors"
+Sharir@meta.data$Cell_source <- "Sorted_epithelial_cells"
+Sharir@meta.data$Genotype <- "C57BL/6J"
+Sharir@meta.data$Technology <- "10X"
+
+Chen@meta.data$Dataset <- "Chen"
+Chen@meta.data$Age <- "4weeks"
+Chen@meta.data$Tooth_type <- "Incisors"
+Chen@meta.data$Cell_source <- "Epithelial_and_mesenchyme"
+Chen@meta.data$Genotype <- "C57BL/6J"
+Chen@meta.data$Technology <- "10X"
+
+Wen@meta.data$Dataset <- "Wen"
+Wen@meta.data$Age <- "PD7.5"
+Wen@meta.data$Tooth_type <- "Molars"
+Wen@meta.data$Cell_source <- "Epithelial_and_mesenchyme"
+Wen@meta.data$Genotype <- "Runx2_fl/fl_controls"
+Wen@meta.data$Technology <- "10X"
+
+Chiba_2_epithelium@meta.data$Dataset <- "Chiba_2_epithelium"
+Chiba_2_epithelium@meta.data$Age <- "PD1"
+Chiba_2_epithelium@meta.data$Tooth_type <- "Molars"
+Chiba_2_epithelium@meta.data$Cell_source <- "Epithelium"
+Chiba_2_epithelium@meta.data$Genotype <- "Krt14-RFP"
+Chiba_2_epithelium@meta.data$Technology <- "10X"
+
+Chiba_2_mesencyhme@meta.data$Dataset <- "Chiba_2_mesenchyme"
+Chiba_2_mesencyhme@meta.data$Age <- "PD1"
+Chiba_2_mesencyhme@meta.data$Tooth_type <- "Molars"
+Chiba_2_mesencyhme@meta.data$Cell_source <- "Mesencyhme"
+Chiba_2_mesencyhme@meta.data$Genotype <- "Krt14-RFP"
+Chiba_2_mesencyhme@meta.data$Technology <- "10X"
+
+Nagata@meta.data$Dataset <- "Nagata"
+Nagata@meta.data$Age <- "PD25"
+Nagata@meta.data$Tooth_type <- "Molars"
+Nagata@meta.data$Cell_source <- "Periodontal"
+Nagata@meta.data$Genotype <- "Col1a1(2.3kb)-GFP; PTHrP-creER; R26R(tdTomato/+)"
+Nagata@meta.data$Technology <- "10X"
+
+Krivanek_incisor_10x@meta.data$orig.ident <- NULL
+Krivanek_incisor_10x@meta.data$orig.ident <- "GSM4365604"
+Krivanek_incisor_10x@meta.data$Dataset <- "Krivanek_incisor"
+Krivanek_incisor_10x@meta.data$Age <- "8-16weeks"
+Krivanek_incisor_10x@meta.data$Tooth_type <- "Incisors"
+Krivanek_incisor_10x@meta.data$Cell_source <- "Epithelial_and_mesenchyme"
+Krivanek_incisor_10x@meta.data$Genotype <- "C57BL/6J_and_Sox2eGFP"
+Krivanek_incisor_10x@meta.data$Technology <- "10X"
+
+Krivanek_molar_10x_1@meta.data$orig.ident <- NULL
+Krivanek_molar_10x_1@meta.data$orig.ident <- "GSM4365605"
+Krivanek_molar_10x_1@meta.data$Dataset <- "Krivanek_molar"
+Krivanek_molar_10x_1@meta.data$Age <- "8-16weeks"
+Krivanek_molar_10x_1@meta.data$Tooth_type <- "Molars"
+Krivanek_molar_10x_1@meta.data$Cell_source <- "Epithelial_and_mesenchyme"
+Krivanek_molar_10x_1@meta.data$Genotype <- "C57BL/6J_and_Sox2eGFP"
+Krivanek_molar_10x_1@meta.data$Technology <- "10X"
+
+Krivanek_molar_10x_2@meta.data$orig.ident <- NULL
+Krivanek_molar_10x_2@meta.data$orig.ident <- "GSM4365605"
+Krivanek_molar_10x_2@meta.data$Dataset <- "Krivanek_molar"
+Krivanek_molar_10x_2@meta.data$Age <- "8-16weeks"
+Krivanek_molar_10x_2@meta.data$Tooth_type <- "Molars"
+Krivanek_molar_10x_2@meta.data$Cell_source <- "Epithelial_and_mesenchyme"
+Krivanek_molar_10x_2@meta.data$Genotype <- "C57BL/6J_and_Sox2eGFP"
+Krivanek_molar_10x_2@meta.data$Technology <- "10X"
+
+Zhao_perio_1@meta.data$Dataset <- "Zhao_perio_1"
+Zhao_perio_1@meta.data$Age <- "Adult"
+Zhao_perio_1@meta.data$Tooth_type <- "Molars"
+Zhao_perio_1@meta.data$Cell_source <- "Periodontal"
+Zhao_perio_1@meta.data$Genotype <- "CD1"
+Zhao_perio_1@meta.data$Technology <- "10X"
+
+Zhao_perio_2@meta.data$Dataset <- "Zhao_perio_2"
+Zhao_perio_2@meta.data$Age <- "Adult"
+Zhao_perio_2@meta.data$Tooth_type <- "Molars"
+Zhao_perio_2@meta.data$Cell_source <- "Periodontal"
+Zhao_perio_2@meta.data$Genotype <- "CD1"
+Zhao_perio_2@meta.data$Technology <- "10X"
+```
+
+```
+# Add Dataset of origin to cell name to avoid possible identical cell names between datasets
+Chiba <- RenameCells(Chiba, new.names = paste0(Chiba$Dataset, "_", Cells(Chiba)))
+Takahashi <- RenameCells(Takahashi, new.names = paste0(Takahashi$Dataset, "_", Cells(Takahashi)))
+Sharir <- RenameCells(Sharir, new.names = paste0(Sharir$Dataset, "_", Cells(Sharir)))
+Chen <- RenameCells(Chen, new.names = paste0(Chen$Dataset, "_", Cells(Chen)))
+Wen <- RenameCells(Wen, new.names = paste0(Wen$Dataset, "_", Cells(Wen)))
+Chiba_2_epithelium <- RenameCells(Chiba_2_epithelium, new.names = paste0(Chiba_2_epithelium$Dataset, "_", Cells(Chiba_2_epithelium)))
+Chiba_2_mesencyhme <- RenameCells(Chiba_2_mesencyhme, new.names = paste0(Chiba_2_mesencyhme$Dataset, "_", Cells(Chiba_2_mesencyhme)))
+Nagata <- RenameCells(Nagata, new.names = paste0(Nagata$Dataset, "_", Cells(Nagata)))
+Krivanek_incisor_10x <- RenameCells(Krivanek_incisor_10x, new.names = paste0(Krivanek_incisor_10x$Dataset, "_", Cells(Krivanek_incisor_10x)))
+Krivanek_molar_10x_1 <- RenameCells(Krivanek_molar_10x_1, new.names = paste0(Krivanek_molar_10x_1$Dataset, "_", Cells(Krivanek_molar_10x_1)))
+Krivanek_molar_10x_2 <- RenameCells(Krivanek_molar_10x_2, new.names = paste0(Krivanek_molar_10x_2$Dataset, "_", Cells(Krivanek_molar_10x_2)))
+Zhao_perio_1 <- RenameCells(Zhao_perio_1, new.names = paste0(Zhao_perio_1$Dataset, "_", Cells(Zhao_perio_1)))
+Zhao_perio_2 <- RenameCells(Zhao_perio_2, new.names = paste0(Zhao_perio_2$Dataset, "_", Cells(Zhao_perio_2)))
+```
+
+
 ## MTA Quality Control
 ```
+Krivanek_molars <- merge(x = Krivanek_molars_1, y = Krivanek_molars_2) #merged now because the cell number is too small for downstream steps otherwise 
+
 # Perform QC individually
 Chiba <- subset(Chiba, subset = nFeature_RNA > 1500 & nFeature_RNA < 6000 & percent.mito < 5 & nCount_RNA < 40000)
 Takahashi <- subset(Takahashi, subset = nFeature_RNA > 1000 & nFeature_RNA < 6000 & percent.mito < 20 & nCount_RNA < 40000)
@@ -73,7 +326,9 @@ Nagata <- subset(Nagata, subset = nFeature_RNA > 500 & nFeature_RNA < 7000 & per
 Zhao_1 <- subset(Zhao_1, subset = nFeature_RNA > 1000 & nFeature_RNA < 7000 & percent.mito < 8 & nCount_RNA < 40000) 
 Zhao_2 <- subset(Zhao_2, subset = nFeature_RNA > 1000 & nFeature_RNA < 7000 & percent.mito < 8 & nCount_RNA < 40000) 
 ```
-```# Merge datasets
+
+```
+# Merge datasets
 merged_final_qc <- merge(x = Chiba, y = c(Takahashi, Sharir, Krivanek_incisors, Krivanek_molars, Chen, Wen, Chiba_2_epi, Chiba_2_mes, Nagata, Zhao_1, Zhao_2))
 ```
 
