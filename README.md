@@ -26,7 +26,7 @@ This repository contains the R and Python code used perform the single-cell RNA-
 ```
 suppressMessages({
 #set working directory
-setwd("/staging/leuven/stg_00073/SC_Florian/")
+setwd("./MTA")
 getwd()
 
 #load in required software packages
