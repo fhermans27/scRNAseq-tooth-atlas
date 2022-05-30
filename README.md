@@ -908,7 +908,7 @@ First we extract the required data from our integrated Seurat object in our R en
   (5) Calculate RSS scores
 
 Afterwards, we move back to our R environment for further analyses using the pySCENIC output:
-  (6) Create a regulon-based Seurat object and perform regulon-based integration/clustering
+  (6) Create a regulon-based Seurat object and perform regulon-based integration
   (7) Calculate MRA
 
 #### Extract required data
@@ -960,6 +960,7 @@ REGULONS_FNAME = os.path.join(DATA_FOLDER, "regulons.p")
 MOTIFS_FNAME = os.path.join(DATA_FOLDER, "motifs.csv")
 ```
 NB: The motifs and feather files were obtained from https://resources.aertslab.org/cistarget/ 
+
 NB2: The list of TFs can be found from our resources folder in the repository. xxx
 
 #### Load in counts, TF and ranking databases. 
@@ -1400,16 +1401,96 @@ plt.savefig("clusters-RSS-top5.pdf", dpi=600, bbox_inches = "tight")
 plt.show()
 ```
 
-#### (6) Create a regulon-based Seurat object and perform regulon-based integration/clustering (R)
+#### (6) Calculate MRA (R)
 Move back to our R environment, as done before. 
+```
+integrated
+```
+```
+auc_mtx <- read.csv("/MTA/SCENIC/auc_mtx_corrected_index.csv")
+```
+```
+UMAP_dims <- integrated@reductions$umap_50dims@cell.embeddings
+annotation <- integrated@meta.data
+```
+```
+anno <- data.frame(UMAP_dims[,-1],
+                   Cell = UMAP_dims$X,
+                   clusters = annotation$Annotation,
+                   dataset = annotation$Dataset,
+                   age = annotation$Age,
+                   tooth_type = annotation$Tooth_type,
+                  row.names = UMAP_dims$X)
+```
+```
+# Ensure cell IDs match
+anno$Cell <- gsub('\\.', '-', anno$Cell) 
+rownames(anno) <- anno$Cell
+auc_mtx$Cell <- gsub('\\.', '-', auc_mtx$Cell)
+UMAP_dims$X <- gsub('\\.', '-', UMAP_dims$X )
+rownames(annotation) <- gsub('\\.', '-', rownames(annotation))
+```
+```
+# Join the data
+regulon_anno <- inner_join(auc_mtx, anno, by = "Cell")
+regulon_anno_long <- gather(regulon_anno, regulon, activity, -clusters, -dataset, -age, -tooth_type, -Cell, -UMAP50_1, -UMAP50_2)
+```
+```
+# Remove 3 dots at the end of regulon's name
+regulon_anno_long$regulon <- gsub('.{0,3}$', '', regulon_anno_long$regulon)
+```
+Calculate MRA:
+```
+meanRegPerCluster <- regulon_anno_long %>%
+                        dplyr::select(-c(Cell, UMAP50_1, UMAP50_2)) %>%
+                        group_by(clusters, regulon) %>%
+                        summarize(mean_activity = mean(activity))
+write.table(meanRegPerCluster, "./MTA_SCENIC_MRA_Clusters.txt", col.names=NA, sep="\t")
+```
 
-
-#### (7) Calculate MRA
-
-
-
-
-
+#### (7) Create a regulon-based Seurat object and perform regulon-based integration (R)
+```
+auc_mtx <- auc_mtx %>%
+                dplyr::filter(Cell %in% regulon_anno$Cell)
+```
+```
+# Remove 3 dots at the end of regulon's name
+colnames(auc_mtx) <- gsub('\\...','', colnames(auc_mtx))
+```
+```
+auc_mtx <- data.frame(auc_mtx[,-1], row.names = auc_mtx[,1])
+```
+```
+# Transpose matrix
+auc_mtx_T <- t(auc_mtx)
+```
+```
+meta_data <- data.frame(annotation)
+```
+```
+seurat <- CreateSeuratObject(counts = auc_mtx_T, meta.data = meta_data, min.cells = 0, min.features = 0, project = "AUC")
+```
+Perform standard integration
+```
+tooth.list <- SplitObject(seurat, split.by = "Dataset")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- FindVariableFeatures(x, verbose = FALSE)
+})
+```
+```
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30)
+integrated_regulons <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+```
+DefaultAssay(integrated_regulons) <- "integrated_regulons"
+integrated_regulons <- ScaleData(integrated_regulons, verbose = FALSE, vars.to.regress = c("S.Score", "G2M.Score"))
+integrated_regulons <- RunPCA(integrated_regulons, npcs = 100, verbose = FALSE)
+```
+```
+integrated_regulons <- RunUMAP(integrated_regulons, umap.method = "umap-learn", dims = 1:15, min.dist = 0.5)
+umap_dims <- integrated_regulons@reductions$umap@cell.embeddings
+integrated_regulons[["umap_15dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP15_", assay = DefaultAssay(integrated_regulons))
+```
 
 
 ## Inference of LR interactions using CellPhoneDB
