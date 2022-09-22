@@ -22,7 +22,7 @@ This repository contains the R and Python code used perform the single-cell RNA-
   - [Quality Control](#hta-quality-control)
 
 # Mouse Tooth Atlas
-## MTA Setup
+## MTA setup
 
 ```
 suppressMessages({
@@ -309,7 +309,7 @@ Zhao_perio_2 <- RenameCells(Zhao_perio_2, new.names = paste0(Zhao_perio_2$Datase
 ```
 
 
-## MTA Quality Control
+## MTA quality control
 ```
 Krivanek_molars <- merge(x = Krivanek_molars_1, y = Krivanek_molars_2) #merged now because the cell number is too small for downstream steps otherwise 
 
@@ -333,7 +333,7 @@ Zhao_2 <- subset(Zhao_2, subset = nFeature_RNA > 1000 & nFeature_RNA < 7000 & pe
 merged_final_qc <- merge(x = Chiba, y = c(Takahashi, Sharir, Krivanek_incisors, Krivanek_molars, Chen, Wen, Chiba_2_epi, Chiba_2_mes, Nagata, Zhao_1, Zhao_2))
 ```
 
-## Initial Integration on three groups 
+## Initial integration on three groups 
 (incisors, molars, periodontal), using 'standard Seurat integration workflow'
 
 ```
@@ -1847,8 +1847,22 @@ print(ht)
 
 # Human Tooth Atlas
 
-## HTA Setup
+## Healthy HTA - setup
 
-## HTA Quality Control
+## Healthy HTA - quality control
+
+## Healthy HTA - initial integration
+
+## Healthy HTA - removal of background or ambient RNA using SoupX
+
+## Healthy HTA - rPCA integration
+
+## Healthy HTA - subclustering of dental epithelium (DE)
+
+### xxx
+
+### xxx
+
+
 
 
