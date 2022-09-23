@@ -2848,7 +2848,616 @@ all.markers <- FindAllMarkers(object = integrated, logfc.threshold = 0.25, min.p
 
 ### Analysis of GRNs using pySCENIC
 
-xxx
+First we extract the required data from our integrated Seurat object in our R environment. Afterwards we switch to our Python Conda environment containing pySCENIC. After setup, analysis can be divided into several steps: 
+  (1) inference of co-expression modules
+  (2) generation of regulons
+  (3) Calculate AUC (i.e. cellular regulon enrichment)
+  (4) Create a loom file (to share data via SCope, and to calculate RSS scores)
+  (5) Calculate RSS scores
+
+Afterwards, we move back to our R environment for further analyses using the pySCENIC output:
+  (6) Create a regulon-based Seurat object and perform regulon-based integration
+  (7) Calculate MRA
+
+#### Extract required data
+```
+normCounts <- integrated[["SoupX"]]@data
+write.csv(normCounts, "./HTA_SCENIC/ERM/resources_folder/normCounts_4scenic.csv")
+
+annotation <- integrated@meta.data
+write.csv(annotation, "./HTA_SCENIC/ERM/resources_folder/annotation_4scenic.csv")
+
+umap_dims <- integrated@reductions$umap_50dims@cell.embeddings
+write.csv(umap_dims, "./HTA_SCENIC/ERM/resources_folder/dims_4scenic.csv")
+```
+
+#### Switch to the pySCENIC Conda environment and set up workspace
+```
+import os
+import glob
+import pickle
+import pandas as pd
+import numpy as np
+
+from dask.diagnostics import ProgressBar
+from arboreto.utils import load_tf_names
+from arboreto.algo import grnboost2
+
+from pyscenic.rnkdb import FeatherRankingDatabase as RankingDatabase
+from pyscenic.utils import modules_from_adjacencies, load_motifs
+from pyscenic.prune import prune2df, df2regulons
+from pyscenic.aucell import aucell
+
+import seaborn as sns
+```
+
+```
+os.chdir("/HTA_SCENIC/ERM")
+```
+
+```
+DATA_FOLDER="/HTA_SCENIC/ERM/data_folder"
+RESOURCES_FOLDER="/HTA_SCENIC/ERM/resources_folder"
+DATABASE_FOLDER = "/HTA_SCENIC/ERM/database_folder"
+SCHEDULER="123.122.8.24:8786"
+DATABASES_GLOB = os.path.join(DATABASE_FOLDER, "hg38*.mc9nr.feather")
+MOTIF_ANNOTATIONS_FNAME = os.path.join(RESOURCES_FOLDER, "motifs-v9-nr.hgnc-m0.001-o0.0.tbl")
+MM_TFS_FNAME = os.path.join(RESOURCES_FOLDER, TF_names_v_1.01.txt')
+SC_EXP_FNAME = os.path.join(RESOURCES_FOLDER, "normCounts_4scenic.csv")
+REGULONS_FNAME = os.path.join(DATA_FOLDER, "regulons.p")
+MOTIFS_FNAME = os.path.join(DATA_FOLDER, "motifs.csv")
+```
+NB: The motifs and feather files were obtained from https://resources.aertslab.org/cistarget/ 
+
+NB2: The list of TFs can be found from our resources folder in the repository. xxx
+
+#### Load in counts, TF and ranking databases. 
+```
+exp_mtx = pd.read_csv(os.path.join(RESOURCES_FOLDER, "normCounts_4scenic.csv"), index_col=0, sep=',').T
+exp_mtx.shape #check file
+exp_mtx.iloc[0:10,100:110] #check file
+```
+```
+tf_names = load_tf_names(MM_TFS_FNAME)
+```
+```
+db_fnames = glob.glob(DATABASES_GLOB)
+def name(fname):
+    return os.path.splitext(os.path.basename(fname))[0]
+dbs = [RankingDatabase(fname=fname, name=name(fname)) for fname in db_fnames]
+dbs
+```
+
+#### (1) inference of co-expression modules
+```
+from distributed import Client, LocalCluster
+local_cluster = LocalCluster(n_workers=10, threads_per_worker=1)
+client = Client(local_cluster)
+```
+```
+adjacencies = grnboost2(
+    expression_data=exp_mtx,
+    tf_names=tf_names,
+    verbose=True,
+    client_or_address=client)
+    
+adjacencies.to_csv("adjacencies_norm.csv")
+adjacencies.head()
+```
+```
+adjacencies = pd.read_csv('adjacencies_norm.csv', index_col=0)
+adjacencies.head()
+```
+
+#### (2) generation of regulons
+```
+# Generate modules based on calculated adjacencies
+modules = list(modules_from_adjacencies(adjacencies, exp_mtx))
+```
+```
+# Prune modules using cic-regulatory information (RcisTarget)
+with ProgressBar():
+    df = prune2df(dbs, modules, MOTIF_ANNOTATIONS_FNAME, client_or_address=client)
+    
+regulons = df2regulons(df)
+len(regulons)
+
+df.to_csv(MOTIFS_FNAME)
+```
+```
+with open(REGULONS_FNAME, "wb") as f:
+    pickle.dump(regulons, f)
+```
+
+#### (3) Calculate AUC
+```
+regulons = df2regulons(df)
+```
+```
+auc_mtx = aucell(exp_mtx, regulons, num_workers=8)
+auc_mtx.to_csv("auc_mtx.csv")
+```
+```
+auc_mtx = pd.read_csv('auc_mtx.csv', index_col=0)
+auc_mtx.head()
+```
+```
+auc_mtx.index = auc_mtx.index.str.replace('.', '-') #fix formatting of cell names
+auc_mtx.index = auc_mtx.index.str.replace('X', '') #fix formatting of cell names, somehow and X was added to the cell names
+auc_mtx.to_csv("auc_mtx_corrected_index.csv")
+auc_mtx.head()
+auc_mtx.shape
+```
+
+#### (4) Loom file generation
+Set up environment
+```
+from pyscenic.export import export2loom
+from pyscenic.utils import load_motifs, Sequence
+from pyscenic.transform import df2regulons
+```
+```
+# Import gene expression matrix, fix formatting of cell names.
+exp_mtx = pd.read_csv(os.path.join(RESOURCES_FOLDER, "normCounts_4scenic.csv"), index_col=0, sep=',').T
+exp_mtx.index = exp_mtx.index.str.replace('.', '-')
+exp_mtx.head()
+```
+```
+# Check if expression matrix has the correct format
+def is_valid_exp_matrix(mtx):
+    return (all(isinstance(idx, str) for idx in mtx.index) 
+            and all(isinstance(idx, str) for idx in mtx.columns)
+            and (mtx.index.nlevels == 1)
+            and (mtx.columns.nlevels == 1))
+is_valid_exp_matrix(exp_mtx)
+```
+Import all required data, and ensure correct formatting. 
+```
+# Import motifs
+motifs = df
+```
+```
+# Import metadata from Seurat
+annotation_loom = pd.read_csv("HTA_SCENIC/ERM/resources_folder/annotation_4scenic.csv", index_col=0, sep=',')
+annotation_loom = annotation_loom.loc[:,"epithelial"] # Extract cell annotation
+annotation_loom.index = annotation_loom.index.str.replace('.', '-') # fix formatting of cell names
+
+annotation_loom.to_csv("_annotation_loom.csv")
+!mv /MTA/SCENIC/annotation_loom.csv /HTA_SCENIC/ERM/resources_folder/
+```
+```
+ANNOTATIONS_FNAME = os.path.join(RESOURCES_FOLDER, "FH_atlas_annotation_loom.csv")
+with open(ANNOTATIONS_FNAME, "rt") as f:
+     annotations = dict(line.strip().replace("\"", "").split(",") for idx, line in enumerate(f) if idx > 0)
+```
+```
+#Check if annotation has the correct format
+def is_valid_annotation_mapping(m):
+    return (all(isinstance(k, str) for k in m.keys()) 
+            and all(isinstance(v, str) for v in m.values()))
+is_valid_annotation_mapping(annotations)
+dict(list(annotations.items())[:5])
+```
+```
+# Import UMAP dimensional reduction coordinates
+embeddings = pd.read_csv("/HTA_SCENIC/ERM/resources_folder/UMAP_dims_4scenic.csv", index_col=0, sep=',')
+embeddings.index = embeddings.index.str.replace('.', '-') # fix formatting of cell names
+```
+```
+embeddings = embeddings.iloc[:,[0,1]]
+embeddings.columns=['_X', '_Y']
+```
+```
+embeddings = { "UMAP (default)" : pd.DataFrame(data=embeddings,
+                                      index=exp_mtx.index, columns=['_X', '_Y']) } # (n_cells, 2)
+                                      
+```
+```
+from collections import OrderedDict
+id2name = OrderedDict()
+embeddings_X = pd.DataFrame(index=exp_mtx.index)
+embeddings_Y = pd.DataFrame(index=exp_mtx.index)
+for idx, (name, df_embedding) in enumerate(embeddings.items()):
+    if(len(df_embedding.columns)!=2):
+        raise Exception('The embedding should have two columns.')
+```
+```
+embedding_id = idx - 1 # Default embedding must have id == -1 for SCope.
+id2name[embedding_id] = name
+```
+```
+embedding = df_embedding.copy()
+embedding.columns=['_X', '_Y']
+embeddings_X = pd.merge(embeddings_X, embedding['_X'].to_frame().rename(columns={'_X': str(embedding_id)}), left_index=True, right_index=True)
+embeddings_Y = pd.merge(embeddings_Y, embedding['_Y'].to_frame().rename(columns={'_Y': str(embedding_id)}), left_index=True, right_index=True)
+```
+```
+# Calculate the number of genes per cell
+binary_mtx = exp_mtx.copy()
+binary_mtx[binary_mtx != 0] = 1.0
+ngenes = binary_mtx.sum(axis=1).astype(int)
+```
+```
+# Encode genes in regulons as a binary membership matrix
+from operator import attrgetter
+genes = np.array(exp_mtx.columns)
+n_genes = len(genes)
+n_regulons = len(regulons)
+data = np.zeros(shape=(n_genes, n_regulons), dtype=int)
+for idx, regulon in enumerate(regulons):
+    data[:, idx] = np.isin(genes, regulon.genes).astype(int)
+regulon_assignment = pd.DataFrame(data=data,
+                                    index=exp_mtx.columns,
+                                    columns=list(map(attrgetter('name'), regulons)))
+```
+```
+# Encode cell annotations
+name2idx = dict(map(reversed, enumerate(sorted(set(annotations.values())))))
+
+clusterings = pd.DataFrame(data=exp_mtx.index.values,
+                               index=exp_mtx.index,
+                               columns=['0']).replace(annotations).replace(name2idx)
+
+clusterings.head() # Data for first cell always gets mixed up; add correct cluster manually (below)
+clusterings.iloc[[0],[0]] = 34
+clusterings.head()
+```
+```
+# Encode cluster_labels (for RSS score calculation)
+cluster_labels = pd.DataFrame(data=exp_mtx.index.values,
+                               index=exp_mtx.index,
+                               columns=['0']).replace(annotations)
+
+cluster_labels.head() # Data for first cell always gets mixed up; add correct cluster manually (below)
+cluster_labels.iloc[[0],[0]] = "Pulp-Epi"
+```
+Create metadata structure of loom file
+```
+def create_structure_array(df):
+    return np.array([tuple(row) for row in df.values],
+                    dtype=np.dtype(list(zip(df.columns, df.dtypes))))
+```
+```
+    default_embedding = next(iter(embeddings.values())).copy()
+    default_embedding.columns=['_X', '_Y']
+    column_attrs = {
+        "CellID": exp_mtx.index.values.astype('str'),
+        "nGene": ngenes.values,
+        "Embedding": create_structure_array(default_embedding),
+        "RegulonsAUC": create_structure_array(auc_mtx),
+        "Clusterings": create_structure_array(clusterings),
+        "ClusterID": clusterings.values,
+        "Cluster_labels":cluster_labels.values,
+        'Embeddings_X': create_structure_array(embeddings_X),
+        'Embeddings_Y': create_structure_array(embeddings_Y),
+        }
+    row_attrs = {
+        "Gene": exp_mtx.columns.values.astype('str'),
+        "Regulons": create_structure_array(regulon_assignment),
+        }
+```
+```
+def fetch_logo(context):
+    for elem in context:
+        if elem.endswith('.png'):
+            return elem
+    return ""
+```
+```
+def fetch_logo(context):
+    for elem in context:
+        if elem.endswith('.png'):
+            return elem
+    return ""
+name2logo = {reg.name: fetch_logo(reg.context) for reg in regulons}
+regulon_thresholds = [{"regulon": name,
+                        "defaultThresholdValue":(threshold if isinstance(threshold, float) else threshold[0]),
+                        "defaultThresholdName": "guassian_mixture_split",
+                        "allThresholds": {"guassian_mixture_split": (threshold if isinstance(threshold, float) else threshold[0])},
+                        "motifData": name2logo.get(name, "")} for name, threshold in auc_mtx.iteritems()] 
+```
+```
+import json
+general_attrs = {
+    "title": "RegulonsEpiHTA",
+    "MetaData": json.dumps({
+        "embeddings": [{'id': identifier, 'name': name} for identifier, name in id2name.items()],
+        "annotations": [{
+            "name": "",
+            "values": []
+        }],
+        "clusterings": [{
+            "id": 0,
+            "group": "celltype",
+            "name": "Cell Type",
+            "clusters": [{"id": idx, "description": name} for name, idx in name2idx.items()]
+        }],
+        "regulonThresholds": regulon_thresholds
+    }),
+    "Genome": "mm10"}
+```
+Add tree structure
+```
+tree_structure: Sequence[str] = ()
+```
+```
+from itertools import islice
+import itertools
+assert len(tree_structure) <= 3, ""
+general_attrs.update(("SCopeTreeL{}".format(idx+1), category)
+                        for idx, category in enumerate(list(islice(itertools.chain(tree_structure, itertools.repeat("")), 3))))
+```
+```
+def compress_encode(value):
+    '''
+    Compress using ZLIB algorithm and encode the given value in base64.
+    From: https://github.com/aertslab/SCopeLoomPy/blob/5438da52c4bcf48f483a1cf378b1eaa788adefcb/src/scopeloompy/utils/__init__.py#L7
+    '''
+    return base64.b64encode(zlib.compress(value.encode('ascii'))).decode('ascii')
+```
+```
+import base64
+import zlib
+general_attrs["MetaData"] = compress_encode(value=general_attrs["MetaData"])
+```
+Create loom file:
+```
+import loompy as lp
+lp.create(filename="HTA_Epi_Regulons_loom.loom",
+              layers=exp_mtx.T.values,
+              row_attrs=row_attrs,
+              col_attrs=column_attrs,
+              file_attrs=general_attrs)
+```
+```
+from pyscenic.genesig import Regulon
+from typing import Union
+```
+```
+def add_scenic_metadata(adata: 'sc.AnnData',
+                        auc_mtx: pd.DataFrame,
+                        regulons: Union[None, Sequence[Regulon]] = None,
+                        bin_rep: bool = False,
+                        copy: bool = False) -> 'sc.AnnData':
+    """
+    Add AUCell values and regulon metadata to AnnData object.
+    :param adata: The AnnData object.
+    :param auc_mtx: The dataframe containing the AUCell values (#observations x #regulons).
+    :param bin_rep: Also add binarized version of AUCell values as separate representation. This representation
+    is stored as `adata.obsm['X_aucell_bin']`.
+    :param copy: Return a copy instead of writing to adata.
+    :
+    """
+    # To avoid dependency with scanpy package the type hinting intentionally uses string literals.
+    # In addition, the assert statement to assess runtime type is also commented out.
+    #assert isinstance(adata, sc.AnnData)
+    assert isinstance(auc_mtx, pd.DataFrame)
+    assert len(auc_mtx) == adata.n_obs
+
+    REGULON_SUFFIX_PATTERN = 'Regulon({})'
+
+    result = adata.copy() if copy else adata
+
+    # Add AUCell values as new representation (similar to a PCA). This facilitates the usage of
+    # AUCell as initial dimensional reduction.
+    result.obsm['X_aucell'] = auc_mtx.values.copy()
+    if bin_rep:
+        bin_mtx, _ = binarize(auc_mtx)
+        result.obsm['X_aucell_bin'] = bin_mtx.values
+
+    # Encode genes in regulons as "binary" membership matrix.
+    if regulons is not None:
+        genes = np.array(adata.var_names)
+        data = np.zeros(shape=(adata.n_vars, len(regulons)), dtype=bool)
+        for idx, regulon in enumerate(regulons):
+            data[:, idx] = np.isin(genes, regulon.genes).astype(bool)
+        regulon_assignment = pd.DataFrame(data=data, index=genes,
+                                          columns=list(map(lambda r: REGULON_SUFFIX_PATTERN.format(r.name), regulons1)))
+        result.var = pd.merge(result.var, regulon_assignment, left_index=True, right_index=True, how='left')
+
+    # Add additional meta-data/information on the regulons.
+    def fetch_logo(context):
+        for elem in context:
+            if elem.endswith('.png'):
+                return elem
+        return ""
+    result.uns['aucell'] = {
+        'regulon_names': auc_mtx.columns.map(lambda s: REGULON_SUFFIX_PATTERN.format(s)).values,
+        'regulon_motifs': np.array([fetch_logo(reg.context) for reg in regulons] if regulons is not None else [])
+    }
+
+    # Add the AUCell values also as annotations of observations. This way regulon activity can be
+    # depicted on cellular scatterplots.
+    mtx = auc_mtx.copy()
+    mtx.columns = result.uns['aucell']['regulon_names']
+    result.obs = pd.merge(result.obs, mtx, left_index=True, right_index=True, how='left')
+
+    return result
+```
+```
+def export_regulons(regulons: Sequence[Regulon], fname: str) -> None:
+    """
+    Export regulons as GraphML.
+    :param regulons: The sequence of regulons to export.
+    :param fname: The name of the file to create.
+    """
+    graph = nx.DiGraph()
+    for regulon in regulons:
+        src_name = regulon.transcription_factor
+        graph.add_node(src_name, group='transcription_factor')
+        edge_type = 'activating' if 'activating' in regulon.context else 'inhibiting'
+        node_type = 'activated_target' if 'activating' in regulon.context else 'inhibited_target'
+        for dst_name, edge_strength in regulon.gene2weight.items():
+            graph.add_node(dst_name, group=node_type, **regulon.context)
+            graph.add_edge(src_name, dst_name, weight=edge_strength, interaction=edge_type, **regulon.context)
+    nx.readwrite.write_graphml(graph, fname)
+```
+
+
+#### (5) Calculate RSS scores
+```
+from pyscenic.rss import regulon_specificity_scores
+from pyscenic.plotting import plot_rss
+import matplotlib.pyplot as plt
+from pyscenic.binarization import binarize
+```
+```
+f_final_loom = 'HTA_Epi_Regulons_loom.loom'
+```
+```
+lf = lp.connect( f_final_loom, mode='r', validate=False )
+auc_mtx_loom = pd.DataFrame( lf.ca.RegulonsAUC, index=lf.ca.CellID)
+cellAnnot = pd.concat([pd.DataFrame( lf.ca.Cluster_labels, index=lf.ca.CellID )], axis=1)
+lf.close()
+```
+```
+rss_cellType = regulon_specificity_scores(auc_mtx, cellAnnot[0])
+rss_cellType
+```
+```
+rss_cellType.to_csv("HTA_EPI_rss_clusters.csv")
+```
+```
+#RSS panel plot with all cell types
+
+cats = sorted(list(set(cellAnnot[0])))
+
+fig = plt.figure(figsize=(40, 40))
+for c,num in zip(cats, range(1,len(cats)+1)):
+    x=rss_clusters.T[c]
+    ax = fig.add_subplot(5,7,num)
+    plot_rss(rss_clusters, c, top_n=10, max_n=None, ax=ax)
+    ax.set_ylim( x.min()-(x.max()-x.min())*0.05 , x.max()+(x.max()-x.min())*0.05 )
+    for t in ax.texts:
+        t.set_fontsize(12)
+    ax.set_ylabel('')
+    ax.set_xlabel('')
+    adjust_text(ax.texts, autoalign='xy', ha='right', va='bottom', arrowprops=dict(arrowstyle='-',color='lightgrey'), precision=0.001 )
+ 
+fig.text(0.5, 0.0, 'Regulon', ha='center', va='center', size='x-large')
+fig.text(0.00, 0.5, 'Regulon specificity score (RSS)', ha='center', va='center', rotation='vertical', size='x-large')
+plt.tight_layout()
+plt.rcParams.update({
+    'figure.autolayout': True,
+        'figure.titlesize': 'large' ,
+        'axes.labelsize': 'medium',
+        'axes.titlesize':'large',
+        'xtick.labelsize':'medium',
+        'ytick.labelsize':'medium'
+        })
+plt.savefig("clusters-RSS-top5.pdf", dpi=600, bbox_inches = "tight")
+plt.show()
+```
+
+#### (6) Calculate MRA (R)
+Move back to our R environment, as done before. 
+```
+integrated
+```
+```
+auc_mtx <- read.csv("/HTA_SCENIC/ERM/auc_mtx.csv")
+auc_mtx$Cell <- gsub('\\.', '-', auc_mtx$Cell)
+```
+```
+UMAP_dims <- integrated@reductions$umap_30dims@cell.embeddings
+annotation <- integrated@meta.data
+```
+```
+anno <- data.frame(UMAP_dims[,-1],
+                   Cell = UMAP_dims$X,
+                   clusters = annotation$epithelial,
+                   dataset = annotation$Dataset_merged,
+                   extraction = annotation$Extraction,
+                   tissue = annotation$Tissue,
+                  row.names = UMAP_dims$X)
+```
+```
+# Join the data
+regulon_anno <- inner_join(auc_mtx, anno, by = "Cell")
+regulon_anno_long <- gather(regulon_anno, regulon, activity, -clusters, -dataset, -tissue, -extraction, -Cell, -UMAP30_1, -UMAP30_2)
+```
+
+```
+# Remove 3 dots at the end of regulon's name
+regulon_anno_long$regulon <- gsub('.{0,3}$', '', regulon_anno_long$regulon)
+```
+Calculate MRA:
+```
+meanRegPerCluster <- regulon_anno_long %>%
+                        dplyr::select(-c(Cell, UMAP30_1, UMAP30_2)) %>%
+                        group_by(clusters, regulon) %>%
+                        summarize(mean_activity = mean(activity))
+```
+
+#### (7) Create a regulon-based Seurat object and perform regulon-based integration (R)
+```
+auc_mtx <- auc_mtx %>%
+                dplyr::filter(Cell %in% regulon_anno$Cell)
+```
+```
+# Remove 3 dots at the end of regulon's name
+colnames(auc_mtx) <- gsub('\\...','', colnames(auc_mtx))
+```
+```
+auc_mtx <- data.frame(auc_mtx[,-1], row.names = auc_mtx[,1])
+```
+```
+# Transpose matrix
+auc_mtx_T <- t(auc_mtx)
+```
+```
+meta_data <- data.frame(annotation)
+```
+```
+seurat <- CreateSeuratObject(counts = auc_mtx_T, meta.data = meta_data, min.cells = 0, min.features = 0, project = "AUC")
+```
+Perform standard integration
+```
+tooth.list <- SplitObject(seurat, split.by = "Dataset")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- FindVariableFeatures(x, verbose = FALSE)
+})
+```
+```
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30)
+integrated_regulons <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+```
+DefaultAssay(integrated_regulons) <- "integrated_regulons"
+integrated_regulons <- ScaleData(integrated_regulons, verbose = FALSE, vars.to.regress = c("S.Score", "G2M.Score"))
+integrated_regulons <- RunPCA(integrated_regulons, npcs = 100, verbose = FALSE)
+```
+```
+# Run UMAP for different dimensions, save to object separately to be able to go back
+integrated_regulons <- RunUMAP(integrated_regulons, umap.method = "umap-learn", dims = 1:10, min.dist = 0.5)
+umap_dims <- integrated_regulons@reductions$umap@cell.embeddings
+integrated_regulons[["umap_10dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP10_", assay = DefaultAssay(integrated_regulons))
+
+integrated_regulons <- RunUMAP(integrated_regulons, umap.method = "umap-learn", dims = 1:20, min.dist = 0.5)
+umap_dims <- integrated_regulons@reductions$umap@cell.embeddings
+integrated_regulons[["umap_20dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP20_", assay = DefaultAssay(integrated_regulons))
+
+integrated_regulons <- RunUMAP(integrated_regulons, umap.method = "umap-learn", dims = 1:30, min.dist = 0.5)
+umap_dims <- integrated_regulons@reductions$umap@cell.embeddings
+integrated_regulons[["umap_30dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP30_", assay = DefaultAssay(integrated_regulons))
+```
+```
+options(repr.plot.width=7, repr.plot.height=5)
+DimPlot(integrated_regulons, reduction = "umap_10dims", group.by = "Annotation", pt.size = 2, label = TRUE, repel = TRUE)
+DimPlot(integrated_regulons, reduction = "umap_20dims", group.by = "Annotation", pt.size = 2, label = TRUE, repel = TRUE)
+DimPlot(integrated_regulons, reduction = "umap_30dims", group.by = "Annotation", pt.size = 2, label = TRUE, repel = TRUE)
+```
+```
+options(repr.plot.width=7, repr.plot.height=5)
+DimPlot(integrated_regulons, reduction = "umap_10dims", group.by = "epithelial", pt.size = 2, label = TRUE, repel = TRUE)
+DimPlot(integrated_regulons, reduction = "umap_20dims", group.by = "epithelial", pt.size = 2, label = TRUE, repel = TRUE)
+DimPlot(integrated_regulons, reduction = "umap_30dims", group.by = "epithelial", pt.size = 2, label = TRUE, repel = TRUE)
+```
+Import pySCENIC results to original Seurat object of subclustered dental epithelium:
+```
+integrated[["Regulons"]] <- CreateAssayObject(counts = auc_mtx_T)
+DefaultAssay(integrated) <- "Regulons"
+```
 
 ## Diseased HTA setup 
 
