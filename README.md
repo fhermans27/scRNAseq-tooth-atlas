@@ -2206,6 +2206,43 @@ Song_Tooth_Germ@meta.data$Conditon <- "Healthy"
 Song_Tooth_Germ@meta.data$Technology <- "BD Rhapsody"
 ```
 
+```
+# Add Dataset of origin to cell name to avoid possible identical cell names between datasets
+Pagella_Pulp_1 <- RenameCells(Pagella_Pulp_1, new.names = paste0(Pagella_Pulp_1$Dataset, "_", Cells(Pagella_Pulp_1)))
+Pagella_Pulp_2 <- RenameCells(Pagella_Pulp_2, new.names = paste0(Pagella_Pulp_2$Dataset, "_", Cells(Pagella_Pulp_2)))
+
+```
+
+```
+# Group datasets together for QC and integration
+Pagella_Pulp_1@meta.data$Dataset_merged <- "Pagella_Pulp"
+Pagella_Pulp_2@meta.data$Dataset_merged <- "Pagella_Pulp"
+Pagella_Pulp_3@meta.data$Dataset_merged <- "Pagella_Pulp"
+Pagella_Pulp_4@meta.data$Dataset_merged <- "Pagella_Pulp"
+Pagella_Pulp_5@meta.data$Dataset_merged <- "Pagella_Pulp"
+
+Pagella_Perio_1@meta.data$Dataset_merged <- "Pagella_Periodontal"
+Pagella_Perio_2@meta.data$Dataset_merged <- "Pagella_Periodontal"
+Pagella_Perio_3@meta.data$Dataset_merged <- "Pagella_Periodontal"
+Pagella_Perio_4@meta.data$Dataset_merged <- "Pagella_Periodontal"
+Pagella_Perio_5@meta.data$Dataset_merged <- "Pagella_Periodontal"
+
+Krivanek_Apical_Papilla_1@meta.data$Dataset_merged <- "Krivanek_Apical_Papilla"
+Krivanek_Apical_Papilla_2@meta.data$Dataset_merged <- "Krivanek_Apical_Papilla"
+Krivanek_Dental_Pulp@meta.data$Dataset_merged <- "Krivanek_Pulp"
+Krivanek_Whole_Molar_1@meta.data$Dataset_merged <- "Krivanek_Whole_Molar"
+Krivanek_Whole_Molar_2@meta.data$Dataset_merged <- "Krivanek_Whole_Molar"
+Krivanek_Whole_Molar_3@meta.data$Dataset_merged <- "Krivanek_Whole_Molar"
+
+Song_Tooth_Germ@meta.data$Dataset_merged <- "Song_Tooth_Germ"
+
+Hemeryck_follicle_1@meta.data$Dataset_merged <- "Hemeryck_Dental_Follicle"
+Hemeryck_follicle_2@meta.data$Dataset_merged <- "Hemeryck_Dental_Follicle"
+
+Yin_Healthy@meta.data$Dataset_merged <- "Yin_Healthy"
+
+Opasawatchai_Healthy@meta.data$Dataset_merged <- "Opasawatchai_Healthy"
+```
 
 ## Healthy HTA quality control
 
@@ -2268,3 +2305,12 @@ Tong_Periapical_Granuloma@meta.data$Conditon <- "Periapical Granuloma"
 Tong_Periapical_Granuloma@meta.data$Technology <- "10X"
 ```
 
+```
+Tong_CAP_1@meta.data$Dataset_merged <- "Tong_CAP"
+Tong_CAP_2@meta.data$Dataset_merged <- "Tong_CAP"
+Tong_Periapical_Granuloma@meta.data$Dataset_merged <- "Tong_Periapical_Granuloma"
+
+Opasawatchai_Deep_Carries_1@meta.data$Dataset_merged <- "Opasawatchai_Deep_Carries"
+Opasawatchai_Deep_Carries_2@meta.data$Dataset_merged <- "Opasawatchai_Deep_Carries"
+Opasawatchai_Enamel_Carries@meta.data$Dataset_merged <- "Opasawatchai_Enamel_Carries"
+```
