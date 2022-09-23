@@ -25,6 +25,10 @@ Which can be found at: https://www.frontiersin.org/articles/10.3389/fcell.2022.1
   - [Healthy HTA Removal of background or ambient RNA using SoupX](#healthy-hta-removal-of-background-or-ambient-rna-using-soupx)
   - [Healthy HTA rPCA integration](#healthy-hta-rpca-integration)
   - [Healthy HTA subclustering of dental epithelium](#healthy-hta-subclustering-of-dental-epithelium)
+  - [Diseased HTA Setup](#diseased-hta-setup)
+  - [Diseased HTA Quality Control](#diseased-hta-quality-control)
+  - [Diseased HTA initial integration](#diseased-hta-initial-integration)
+  - [Diseased HTA Removal of background or ambient RNA using SoupX)(#diseased-hta-removal-of-background-or-ambient-rna-using-soupx)
 
 
 
@@ -1625,7 +1629,6 @@ DefaultAssay(epi_integrated) <- "epi_integrated"
 epi_integrated <- ScaleData(epi_integrated, verbose = FALSE)
 epi_integrated <- RunPCA(epi_integrated, verbose = FALSE)
 ```
-
 ```
 # Run UMAP for different dimensions, save to object separately to be able to compare
 
@@ -1657,7 +1660,6 @@ By plotting the metadata, prior cluster annotation and marker genes we selected 
 DefaultAssay(epi_integrated) <- "SoupX"
 options(repr.plot.width=12, repr.plot.height=12)
 ```
-
 ```
 # Gene expression of DESC genes
 DESC_features <- list(c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'))
@@ -1670,7 +1672,6 @@ for (i in 1:length(DESC_features)) {
     print(plot.list[[i]])
 }
 ```
-
 ```
 # DESC Module with AddModuleScore (Seurat)
 
@@ -1686,7 +1687,6 @@ epi_integrated <- AddModuleScore(
 
 FeaturePlot(epi_integrated, reduction = "umap_40dims", features = "DESC_features1", pt.size = 1, cols = (c("lightgrey", "steelblue", "blue4")))
 ```
-
 ```
 # DESC (joint) densities with Nebulosa
 p_list <- plot_density(epi_integrated, c('Sox2','Lgr5','Gli1','Lrig1','Bmi1','Ptch1','Pknox2','Zfp273','Spock1','Pcp4','Sfrp5'),
@@ -1747,7 +1747,6 @@ cds_from_seurat@preprocess_aux$gene_loadings <- feature_loadings
 #Learn graph
 cds_from_seurat <- learn_graph(cds_from_seurat, use_partition = T)
 ```
-
 ```
 colData(cds_from_seurat)$new_clusters <- as.character(cds_from_seurat@clusters@listData[["UMAP"]][["clusters"]])
 
@@ -1759,12 +1758,10 @@ unique_nodes = unique(root_pr_nodes)
 unique_nodes
 unique_nodes <- as.vector(unique_nodes) # this manually prints a list of nodes, by trial and error we identify the node at the root of our trajectory
 ```
-
 ```
 # Input the manually identified root node to order cells and calculate pseudotime
 cds_from_seurat = order_cells(cds_from_seurat, root_pr_nodes = c('Y_52'))
 ```
-
 ```
 # Plot results
 options(repr.plot.width=20, repr.plot.height=7)
@@ -1786,7 +1783,6 @@ p2 <- plot_cells(cds_from_seurat,
            graph_label_size=5)
 p1+p2
 ```
-
 ```
 # Extract pseudotime values and add to Seurat object
 epi_integrated <- AddMetaData(
@@ -1806,7 +1802,6 @@ hits$pass <- hits$morans_I > 0.1 & hits$q_value < 0.01
 write.table(hits,file="./genes_changing_with_pseudotime.txt",col.names=T,row.names=F,sep="\t",quote=F)
 genes <- read.delim("./changing_with_pseudotime.txt",header=T,sep="\t",stringsAsFactors=F)[,5] #extract list of genes identified
 ```
-
 ```
 # Intersect identified genes with matrix, z-score normalization of expression
 pt.matrix <- as.matrix(cds_from_seurat@assays@data$counts[match(genes,rowData(cds_from_seurat)[,1]),order(pseudotime(cds_from_seurat))])
@@ -1833,7 +1828,6 @@ library(magick)
 
 load("matrix.Rdata")
 ```
-
 ```
 # Create pseudotime heatmap
 options(repr.plot.width=7, repr.plot.height=7)
@@ -1927,7 +1921,6 @@ Pagella_Perio_5 <- CreateSeuratObject(counts = GSM4904138, project = "GSM4904138
 
 xxx Hemeryck/Yin/Opasawatchai
 ```
-
 ```
 # Import of Krivanek apical papilla 1 (human germinectomy)
 data = read.table(gzfile("./GSM4365601_counts_human_germinectomy.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
@@ -1943,7 +1936,6 @@ colnames(data) <- gsub('human_germinectomy_1_one', 'Krivanek_Apical_Papilla_1', 
 #Create Seurat Object
 Krivanek_Apical_Papilla_1 <- CreateSeuratObject(counts = data, project = "GSM4365601", min.cells = 3, min.features = 200)
 ```
-
 ```
 # Import of Krivanek apical papilla 2 (apical_papilla_female_15yo)
 data = read.table(gzfile("./GSM4365609_counts_human_germ_molar_apical_papilla_female_15yo.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
@@ -1959,7 +1951,6 @@ colnames(data) <- gsub('human_germ_molar_apical_papilla_female_15yo_one', 'Kriva
 #Create Seurat Object
 Krivanek_Apical_Papilla_2 <- CreateSeuratObject(counts = data, project = "GSM4365609", min.cells = 3, min.features = 200)
 ```
-
 ```
 # Import of Krivanek dental pulp (human_molar_pulp)
 data = read.table(gzfile("./GSM4365602_counts_human_molar_pulp.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
@@ -1975,7 +1966,6 @@ colnames(data) <- gsub('human_molar_pulp_4_one', 'Krivanek_Dental_Pulp', colname
 #Create Seurat Object
 Krivanek_Dental_Pulp <- CreateSeuratObject(counts = data3, project = "GSM4365602", min.cells = 3, min.features = 200)
 ```
-
 ```
 # Import of Krivanek whole molar 1 (molar_healthy_1)
 data = read.table(gzfile("./GSM4365608_counts_human_molar_healthy_1.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
@@ -1991,7 +1981,6 @@ colnames(data) <- gsub('human_molar_healthy_1_one', 'Krivanek_Whole_Molar_1', co
 #Create Seurat Object
 Krivanek_Whole_Molar_1 <- CreateSeuratObject(counts = data4, project = "GSM4365608", min.cells = 3, min.features = 200)
 ```
-
 ```
 # Import of Krivanek whole molar 2 (molar_healthy_2)
 data = read.table(gzfile("./GSM4365607_counts_human_molar_healthy_2.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
@@ -2007,7 +1996,6 @@ colnames(data) <- gsub('human_molar_healthy_2_one', 'Krivanek_Whole_Molar_2', co
 #Create Seurat Object
 Krivanek_Whole_Molar_2 <- CreateSeuratObject(counts = data5, project = "GSM4365607", min.cells = 3, min.features = 200)
 ```
-
 ```
 # Import of Krivanek whole molar 3 (No5_24_yo_healthy_retained)
 data = read.table(gzfile("./GSM4365610_counts_No5_24_yo_healthy_retained.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
@@ -2023,13 +2011,11 @@ colnames(data) <- gsub('No5_24_yo_healthy_retained_one', 'Krivanek_Whole_Molar_3
 #Create Seurat Object
 Krivanek_Whole_Molar_3 <- CreateSeuratObject(counts = data6, project = "GSM4365610", min.cells = 3, min.features = 200)
 ```
-
 ```
 # Import of Shi tooth germ dataset (from Mendeley Data, Robject)
 load("/staging/leuven/stg_00073/SC_Florian/Human/Song_human_tooth_germ.RData")
 Song_Tooth_Germ <- all
 ```
-
 ```
 # Calculate % of mitochondrial genes per cell, and append this to the metadata
 Pagella_Pulp_1[["percent.mito"]] <- PercentageFeatureSet(Pagella_Pulp_1, pattern = "^MT-")
@@ -2227,7 +2213,6 @@ Pagella_Perio_5 <- RenameCells(Pagella_Perio_5, new.names = paste0(Pagella_Perio
 
 xxx Hemeryck/Yin/Opasawatchai
 ```
-
 ```
 # Group datasets together for QC and integration
 Pagella_Pulp_1@meta.data$Dataset_merged <- "Pagella_Pulp"
@@ -2278,7 +2263,6 @@ Hemeryck_Dental_Follicle <- tooth.list$Hemeryck_Dental_Follicle
 Opasawatchai_Healthy <- tooth.list$Opasawatchai_Healthy
 Yin_Healthy <- tooth.list$Yin_Healthy
 ```
-
 ```
 #Perform QC individually
 Pagella_Pulp <- subset(Pagella_Pulp, subset = nFeature_RNA > 800 & nFeature_RNA < 3000 & percent.mito < 15 & nCount_RNA < 40000)
@@ -2305,7 +2289,6 @@ healthy_merged_final_qc <- merge(x = Pagella_Pulp, y = c(Pagella_Periodontal, Kr
 s.genes <- cc.genes$s.genes
 g2m.genes <- cc.genes$g2m.genes
 ```
-
 ```
 # After acquiring the data, we first perform standard normalization and variable feature selection on the list of objects
 
@@ -2316,7 +2299,6 @@ tooth.list <- lapply(X = tooth.list, FUN = function(x) {
     x <- CellCycleScoring(x, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
 })
 ```
-
 ```
 # select features that are repeatedly variable across datasets for integration run PCA on each dataset using these features
 
@@ -2326,25 +2308,21 @@ tooth.list <- lapply(X = tooth.list, FUN = function(x) {
     x <- RunPCA(x, features = features, verbose = FALSE)
 })
 ```
-
 ```
 # Perform integration
 tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
 
 healthy_integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
 ```
-
 ```
 # switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
 DefaultAssay(healthy_integrated) <- "integrated"
 ```
-
 ```
 # Run the standard workflow for visualization and clustering
 healthy_integrated <- ScaleData(healthy_integrated, verbose = FALSE)
 healthy_integrated <- RunPCA(healthy_integrated, verbose = FALSE, npcs = 100)
 ```
-
 ```
 # Perform UMAP dimensional reduction using umap-learn
 integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:40)
@@ -2367,7 +2345,6 @@ integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:100)
 umap_dims <- integrated@reductions$umap@cell.embeddings
 integrated[["umap_100dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP100_", assay = DefaultAssay(integrated))
 ```
-
 ```
 options(repr.plot.width=20, repr.plot.height=7)
 
@@ -2406,7 +2383,6 @@ DefaultAssay(integrated) <- "integrated" #needs to be set to integrated because 
 integrated <- FindNeighbors(integrated, dims = 1:80)
 integrated <- FindClusters(integrated, resolution = c(1.6, 1.8, 2, 5))
 ```
-
 ```
 options(repr.plot.width=15, repr.plot.height=10)
 
@@ -2464,12 +2440,10 @@ integrated$Annotation <- Idents(integrated)
 integrated$Annotation <- gsub(' ', '_', integrated$Annotation)
 integrated$Annotation <- gsub('/', '_', integrated$Annotation)
 ```
-
 ```
 #Change from integrated to RNA, otherwise next command will fail
 DefaultAssay(integrated) <- "RNA"
 ```
-
 ```
 all.raw.data_integrated <- as.matrix(GetAssayData(integrated, slot = "counts"))
 
@@ -2479,7 +2453,6 @@ list_cluster_integrated <- as.matrix(list_cluster_integrated)
 
 umap_integrated <- (Embeddings(integrated, reduction = "umap_80dims"))
 ```
-
 ```
 # Create a SoupChannel object; because we are starting from our Seurat object we do not have a file with empty droplets. We will import the raw counts matrix from Seurat both as the table of counts (toc) and table of droplets (tod)
 
@@ -2487,7 +2460,6 @@ toc <- all.raw.data_integrated
 tod = all.raw.data_integrated
 sc = SoupChannel(tod, toc, calcSoupProfile = FALSE)
 ```
-
 ```
 # Calculate the Soup profile (of ambient RNA)
 toc = sc$toc
@@ -2496,7 +2468,6 @@ soupProf = data.frame(row.names = rownames(toc), est = rowSums(toc)/sum(toc),
     counts = rowSums(toc))
 scNoDrops = setSoupProfile(scNoDrops, soupProf)
 ```
-
 ```
 # Add UMAP coordinates and cluster information from Seurat analysis to the SoupChannel object
 scNoDrops = setClusters(scNoDrops, setNames(list_cluster_integrated[,1], rownames(list_cluster_integrated)))
@@ -2514,7 +2485,6 @@ sc = autoEstCont(scNoDrops, verbose = TRUE)=
 out = adjustCounts(sc)
 integrated[["SoupX"]] <- CreateAssayObject(counts = out)
 ```
-
 ```
 # Plot the change in expression due to the correction, e.g. for Ambn and Amelx
 options(repr.plot.width=15, repr.plot.height=9)
@@ -2524,7 +2494,6 @@ x3 <- plotChangeMap(sc, out, "VIM")
 x4 <- plotChangeMap(sc, out, "HBB")
 (x1+x2)/(x3+x4)
 ```
-
 ```
 # Normalize corrected counts, find variable features and scale data
 DefaultAssay(integrated) <- "SoupX"
@@ -2540,7 +2509,6 @@ integrated <- ScaleData(integrated, verbose = FALSE)
 s.genes <- cc.genes$s.genes
 g2m.genes <- cc.genes$g2m.genes
 ```
-
 ```
 # After acquiring the data, we first perform standard normalization and variable feature selection on the list of objects
 
@@ -2552,7 +2520,6 @@ tooth.list <- lapply(X = tooth.list, FUN = function(x) {
     x <- CellCycleScoring(x, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
 })
 ```
-
 ```
 # select features that are repeatedly variable across datasets for integration run PCA on each dataset using these features
 
@@ -2562,25 +2529,21 @@ tooth.list <- lapply(X = tooth.list, FUN = function(x) {
     x <- RunPCA(x, features = features, verbose = FALSE)
 })
 ```
-
 ```
 # Perform integration
 tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
 
 healthy_integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
 ```
-
 ```
 # switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
 DefaultAssay(healthy_integrated) <- "integrated"
 ```
-
 ```
 # Run the standard workflow for visualization and clustering
 healthy_integrated <- ScaleData(healthy_integrated, verbose = FALSE)
 healthy_integrated <- RunPCA(healthy_integrated, verbose = FALSE, npcs = 100)
 ```
-
 ```
 # Perform UMAP dimensional reduction using umap-learn
 integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:40)
@@ -2603,7 +2566,6 @@ integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:100)
 umap_dims <- integrated@reductions$umap@cell.embeddings
 integrated[["umap_100dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP100_", assay = DefaultAssay(integrated))
 ```
-
 ```
 options(repr.plot.width=20, repr.plot.height=7)
 
@@ -2642,7 +2604,6 @@ DefaultAssay(integrated) <- "integrated" #needs to be set to integrated because 
 integrated <- FindNeighbors(integrated, dims = 1:80)
 integrated <- FindClusters(integrated, resolution = c(1.6, 1.8, 2, 5))
 ```
-
 ```
 options(repr.plot.width=15, repr.plot.height=10)
 
@@ -2714,7 +2675,6 @@ epithelium <- RenameIdents(epithelium, `Hemeryck_Dental_Follicle` = "Group1", `K
 
 epithelium@meta.data$Integration_Groups <- Idents(epithelium)
 ```
-
 ```
 tooth.list <- SplitObject(epithelium, split.by = "Integration_Groups")
 tooth.list <- lapply(X = tooth.list, FUN = function(x) {
@@ -2722,7 +2682,6 @@ tooth.list <- lapply(X = tooth.list, FUN = function(x) {
     x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
 })
 ```
-
 ```
 features <- SelectIntegrationFeatures(object.list = tooth.list)
 tooth.list <- lapply(X = tooth.list, FUN = function(x) {
@@ -2730,24 +2689,20 @@ tooth.list <- lapply(X = tooth.list, FUN = function(x) {
     x <- RunPCA(x, features = features, verbose = FALSE, npcs = 30, approx = FALSE) # approx = false for small datasets; see: https://github.com/satijalab/seurat/issues/1963
 })
 ```
-
 ```
 # Perform integration
 tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
 integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
 ```
-
 ```
 # switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
 DefaultAssay(integrated) <- "integrated"
 ```
-
 ```
 # Run the standard workflow for visualization and clustering
 integrated <- ScaleData(integrated, verbose = FALSE)
 integrated <- RunPCA(integrated, verbose = FALSE)
 ```
-
 ```
 # Run UMAP for different dimensions, save to object separately to be able to go back
 
@@ -2763,7 +2718,6 @@ integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:30)
 umap_dims <- integrated@reductions$umap@cell.embeddings
 integrated[["umap_30dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP30_", assay = DefaultAssay(integrated))
 ```
-
 ```
 options(repr.plot.width=20, repr.plot.height=7)
 
@@ -2783,7 +2737,6 @@ p2 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "Tissue", label 
     repel = TRUE)
 plot_grid(p1, p2)
 ```
-
 ```
 options(repr.plot.width=20, repr.plot.height=7)
 
@@ -2887,11 +2840,9 @@ from pyscenic.aucell import aucell
 
 import seaborn as sns
 ```
-
 ```
 os.chdir("/HTA_SCENIC/ERM")
 ```
-
 ```
 DATA_FOLDER="/HTA_SCENIC/ERM/data_folder"
 RESOURCES_FOLDER="/HTA_SCENIC/ERM/resources_folder"
@@ -3468,13 +3419,11 @@ Tong_CAP_2 <- CreateSeuratObject(counts = GSM5509265, project = "GSM5509265", mi
 GSM5509266 <- Read10X(data.dir = "./Tong_GEO_2021/SampleC") #Lin dataset
 Tong_Periapical_Granuloma <- CreateSeuratObject(counts = GSM5509266, project = "GSM5509266", min.cells = 3, min.features = 200)
 ```
-
 ```
 Tong_CAP_1[["percent.mito"]] <- PercentageFeatureSet(Tong_CAP_1, pattern = "^MT-")
 Tong_CAP_2[["percent.mito"]] <- PercentageFeatureSet(Tong_CAP_2, pattern = "^MT-")
 Tong_Periapical_Granuloma[["percent.mito"]] <- PercentageFeatureSet(Tong_Periapical_Granuloma, pattern = "^MT-")
 ```
-
 ```
 # Add extra metadata to Seurat object
 Tong_CAP_1@meta.data$Dataset <- "Tong_CAP_1"
@@ -3501,7 +3450,6 @@ Tong_Periapical_Granuloma@meta.data$Age <- "27"
 Tong_Periapical_Granuloma@meta.data$Conditon <- "Periapical Granuloma"
 Tong_Periapical_Granuloma@meta.data$Technology <- "10X"
 ```
-
 ```
 # Add Dataset of origin to cell name to avoid possible identical cell names between datasets
 Tong_CAP_1 <- RenameCells(Tong_CAP_1, new.names = paste0(Tong_CAP_1$Dataset, "_", Cells(Tong_CAP_1)))
@@ -3509,7 +3457,6 @@ Tong_CAP_2 <- RenameCells(Tong_CAP_2, new.names = paste0(Tong_CAP_2$Dataset, "_"
 Tong_Periapical_Granuloma <- RenameCells(Tong_Periapical_Granuloma, new.names = paste0(Tong_Periapical_Granuloma$Dataset, "_", Cells(Tong_Periapical_Granuloma)))
 
 ```
-
 ```
 Tong_CAP_1@meta.data$Dataset_merged <- "Tong_CAP"
 Tong_CAP_2@meta.data$Dataset_merged <- "Tong_CAP"
@@ -3532,7 +3479,6 @@ Tong_Periapical_Granuloma <- tooth.list$Tong_Periapical_Granuloma
 Opasawatchai_Deep_Carries <- tooth.list$Opasawatchai_Deep_Carries
 Opasawatchai_Enamel_Carries <- tooth.list$Opasawatchai_Enamel_Carries
 ```
-
 ```
 Tong_CAP <- subset(Tong_CAP, subset = nFeature_RNA > 1000 & nFeature_RNA < 3500 & percent.mito < 6 & nCount_RNA < 40000)
 Tong_Periapical_Granuloma <- subset(Tong_Periapical_Granuloma, subset = nFeature_RNA > 1100 & nFeature_RNA < 3500 & percent.mito < 5 & nCount_RNA < 40000)
@@ -3548,3 +3494,5 @@ Opasawatchai_Enamel_Carries <- subset(Opasawatchai_Enamel_Carries, subset = nFea
 diseased_merged_final_qc <- merge(x = Tong_CAP, y = c(Tong_Periapical_Granuloma, Opasawatchai_Deep_Carries,
                                                       Opasawatchai_Enamel_Carries))
 ```
+
+## Diseased HTA Removal of background or ambient RNA using SoupX
