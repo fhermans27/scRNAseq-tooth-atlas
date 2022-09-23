@@ -2,7 +2,9 @@
 
 This repository contains the R and Python code used perform the single-cell RNA-sequencing (scRNAseq) analysis used in :
 
-*xxx add publication*
+*"Establishment of inclusive single-cell transcriptome atlases from mouse and human tooth as powerful resource for dental research", Hermans, F, Bueds , C, Hemeryck, L, Lambrichts, I, Bronckaers, A and Vankelecom, H. (2022) Front. Cell Dev. Biol. doi: 10.3389/fcell.2022.1021459*
+
+Which can be found at: https://www.frontiersin.org/articles/10.3389/fcell.2022.1021459/full 
 
 # Table of contents
 - [Mouse Tooth Atlas](#mouse-tooth-atlas)
@@ -1887,7 +1889,7 @@ library(monocle3)
 })
 
 # choose random seed for reproducibility
-set.seed(27011995)
+set.seed(13101999)
 
 })
 ```
@@ -1925,6 +1927,8 @@ Pagella_Perio_4 <- CreateSeuratObject(counts = GSM4904137, project = "GSM4904137
 
 GSM4904138 <- Read10X(data.dir = "./GSM4904138_Pagella_Perio_5")
 Pagella_Perio_5 <- CreateSeuratObject(counts = GSM4904138, project = "GSM4904138", min.cells = 3, min.features = 200)
+
+xxx Hemeryck/Yin/Opasawatchai
 ```
 
 ```
@@ -2204,13 +2208,27 @@ Song_Tooth_Germ@meta.data$Species <- "Human"
 Song_Tooth_Germ@meta.data$Age <- "Unkown"
 Song_Tooth_Germ@meta.data$Conditon <- "Healthy"
 Song_Tooth_Germ@meta.data$Technology <- "BD Rhapsody"
+
+xxx Hemeryck/Yin/Opasawatchai 
 ```
 
 ```
 # Add Dataset of origin to cell name to avoid possible identical cell names between datasets
 Pagella_Pulp_1 <- RenameCells(Pagella_Pulp_1, new.names = paste0(Pagella_Pulp_1$Dataset, "_", Cells(Pagella_Pulp_1)))
 Pagella_Pulp_2 <- RenameCells(Pagella_Pulp_2, new.names = paste0(Pagella_Pulp_2$Dataset, "_", Cells(Pagella_Pulp_2)))
+Pagella_Pulp_3 <- RenameCells(Pagella_Pulp_3, new.names = paste0(Pagella_Pulp_3$Dataset, "_", Cells(Pagella_Pulp_3)))
+Pagella_Pulp_4 <- RenameCells(Pagella_Pulp_4, new.names = paste0(Pagella_Pulp_4$Dataset, "_", Cells(Pagella_Pulp_4)))
+Pagella_Pulp_5 <- RenameCells(Pagella_Pulp_5, new.names = paste0(Pagella_Pulp_5$Dataset, "_", Cells(Pagella_Pulp_5)))
 
+Pagella_Perio_1 <- RenameCells(Pagella_Perio_1, new.names = paste0(Pagella_Perio_1$Dataset, "_", Cells(Pagella_Perio_1)))
+Pagella_Perio_2 <- RenameCells(Pagella_Perio_2, new.names = paste0(Pagella_Perio_2$Dataset, "_", Cells(Pagella_Perio_2)))
+Pagella_Perio_3 <- RenameCells(Pagella_Perio_3, new.names = paste0(Pagella_Perio_3$Dataset, "_", Cells(Pagella_Perio_3)))
+Pagella_Perio_4 <- RenameCells(Pagella_Perio_4, new.names = paste0(Pagella_Perio_4$Dataset, "_", Cells(Pagella_Perio_4)))
+Pagella_Perio_5 <- RenameCells(Pagella_Perio_5, new.names = paste0(Pagella_Perio_5$Dataset, "_", Cells(Pagella_Perio_5)))
+
+#Krivanek and Song cell names were already adjusted.
+
+xxx Hemeryck/Yin/Opasawatchai
 ```
 
 ```
@@ -2246,11 +2264,438 @@ Opasawatchai_Healthy@meta.data$Dataset_merged <- "Opasawatchai_Healthy"
 
 ## Healthy HTA quality control
 
-## Healthy HTA initial integration
+```
+merged <- merge(x = Pagella_Pulp_1, y = c(Pagella_Pulp_2, Pagella_Pulp_3, Pagella_Pulp_4,Pagella_Pulp_5,
+                                          Pagella_Perio_1, Pagella_Perio_2, Pagella_Perio_3, Pagella_Perio_4, Pagella_Perio_5,
+                                          Krivanek_Apical_Papilla_1, Krivanek_Apical_Papilla_2, Krivanek_Dental_Pulp, Krivanek_Whole_Molar_1, Krivanek_Whole_Molar_2, Krivanek_Whole_Molar_3, Song_Tooth_Germ, Hemeryck_follicle_1, Hemeryck_follicle_2, Opasawatchai_Healthy, Yin_Healthy))
+                                          
+tooth.list <- SplitObject(merged, split.by = "Dataset_merged")    
+
+Pagella_Pulp <- tooth.list$Pagella_Pulp
+Pagella_Periodontal <- tooth.list$Pagella_Periodontal
+Krivanek_Apical_Papilla <- tooth.list$Krivanek_Apical_Papilla
+Krivanek_Pulp <- tooth.list$Krivanek_Pulp
+Krivanek_Whole_Molar <- tooth.list$Krivanek_Whole_Molar
+Song_Tooth_Germ <- tooth.list$Song_Tooth_Germ
+Hemeryck_Dental_Follicle <- tooth.list$Hemeryck_Dental_Follicle
+Opasawatchai_Healthy <- tooth.list$Opasawatchai_Healthy
+Yin_Healthy <- tooth.list$Yin_Healthy
+```
+
+```
+#Perform QC individually
+Pagella_Pulp <- subset(Pagella_Pulp, subset = nFeature_RNA > 800 & nFeature_RNA < 3000 & percent.mito < 15 & nCount_RNA < 40000)
+Pagella_Periodontal <- subset(Pagella_Periodontal, subset = nFeature_RNA > 750 & nFeature_RNA < 4000 & percent.mito < 10 & nCount_RNA < 40000)
+Krivanek_Apical_Papilla <- subset(Krivanek_Apical_Papilla, subset = nFeature_RNA > 500 & nFeature_RNA < 1500 & percent.mito < 6 & nCount_RNA < 40000)
+Krivanek_Pulp <- subset(Krivanek_Pulp, subset = nFeature_RNA > 400 & nFeature_RNA < 1500 & percent.mito < 5 & nCount_RNA < 40000)
+Krivanek_Whole_Molar <- subset(Krivanek_Whole_Molar, subset = nFeature_RNA > 1000 & nFeature_RNA < 3000 & percent.mito < 10 & nCount_RNA < 40000)
+Song_Tooth_Germ <- subset(Song_Tooth_Germ, subset = nFeature_RNA > 750 & nFeature_RNA < 2500 & percent.mito < 20 & nCount_RNA < 40000)
+Hemeryck_Dental_Follicle <- subset(Hemeryck_Dental_Follicle, subset = nFeature_RNA > 450 & nFeature_RNA < 5500 & percent.mito < 10 & nCount_RNA < 40000)
+Opasawatchai_Healthy <- subset(Opasawatchai_Healthy, subset = nFeature_RNA > 900 & nFeature_RNA < 3000 & percent.mito < 3 & nCount_RNA < 40000)
+Yin_Healthy <- subset(Yin_Healthy, subset = nFeature_RNA > 500 & nFeature_RNA < 3000 & percent.mito < 15 & nCount_RNA < 40000)
+```
+
+```
+#Merge datasets
+healthy_merged_final_qc <- merge(x = Pagella_Pulp, y = c(Pagella_Periodontal, Krivanek_Apical_Papilla, Krivanek_Pulp, Krivanek_Whole_Molar,
+                                                         Song_Tooth_Germ, Hemeryck_Dental_Follicle, Opasawatchai_Healthy, Yin_Healthy))
+```
+
+## Healthy HTA initial integration and cell cycle regression
+
+```
+# Cell cycle gene sets rom the Seurat package:
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+```
+
+```
+# After acquiring the data, we first perform standard normalization and variable feature selection on the list of objects
+
+tooth.list <- SplitObject(healthy_merged_final_qc, split.by = "Dataset_merged")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+    x <- CellCycleScoring(x, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+})
+```
+
+```
+# select features that are repeatedly variable across datasets for integration run PCA on each dataset using these features
+
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, vars.to.regress = c("S.Score", "G2M.Score"), verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE)
+})
+```
+
+```
+# Perform integration
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+
+healthy_integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+
+```
+# switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
+DefaultAssay(healthy_integrated) <- "integrated"
+```
+
+```
+# Run the standard workflow for visualization and clustering
+healthy_integrated <- ScaleData(healthy_integrated, verbose = FALSE)
+healthy_integrated <- RunPCA(healthy_integrated, verbose = FALSE, npcs = 100)
+```
+
+```
+# Perform UMAP dimensional reduction using umap-learn
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:40)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_40dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP40_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:50)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_50dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP50_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:60)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_60dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP60_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:80)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_80dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP80_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:100)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_100dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP100_", assay = DefaultAssay(integrated))
+```
+
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "Dataset_merged") +ggtitle("UMAP 40dims")
+p2 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "Dataset_merged") +ggtitle("UMAP 50dims")
+p2 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_60dims", group.by = "Dataset_merged") +ggtitle("UMAP 60dims")
+p2 <- DimPlot(integrated, reduction = "umap_60dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_80dims", group.by = "Dataset_merged") +ggtitle("UMAP 80dims")
+p2 <- DimPlot(integrated, reduction = "umap_80dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_100dims", group.by = "Dataset_merged") +ggtitle("UMAP 100dims")
+p2 <- DimPlot(integrated, reduction = "umap_100dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+```
+
+We continue with 80 dimensions
+
+```
+# Perform subclustering 
+DefaultAssay(integrated) <- "integrated" #needs to be set to integrated because this is what we ran PCA on
+integrated <- FindNeighbors(integrated, dims = 1:80)
+integrated <- FindClusters(integrated, resolution = c(1.6, 1.8, 2, 5))
+```
+
+```
+options(repr.plot.width=15, repr.plot.height=10)
+
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.6", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.6 res CCA")
+# res 1.8
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.8", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.8 res CCA")
+# res 2
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.2", label = TRUE) +
+    labs(title = "80 dims UMAP with 2 res CCA")
+# res 5
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.5", label = TRUE) +
+    labs(title = "80 dims UMAP with 5 res CCA")
+```
+
+We continue with resolution = 5 
+
+```
+# Rough, initial annotation
+Idents(integrated) <- integrated@meta.data$integrated_snn_res.5
+integrated <- RenameIdents(integrated, `54` = "Naive_B", `58` = "B", `79` = "pDC",
+                              `40` = "Endothelial", `55` = "Endothelial", `51` = "Endothelial",
+                              `4` = "Endothelial", `12` = "Endothelial", `75` = "Endothelial",
+                              `59` = "Endothelial", `68` = "Endothelial", `66` = "Endothelial",
+                              `32` = "Endothelial", `17` = "Endothelial", `7` = "Endothelial",
+                              `38` = "Endothelial", `52` = "Endothelial", `80` = "Schwann/Oligo",
+                              `23` = "Schwann", `69` = "Schwann", `20` = "Glial",
+                              `34` = "Glial", `83` = "Glia cells", `72` = "Glia cells",
+                              `33` = "Glial", `41` = "SMC", `21` = "SMC", `0` = "SMC",
+                              `53` = "SMC", `61` = "SMC", `65` = "Perivascular", `49` = "Perivascular",
+                              `5` = "Perivascular", `2` = "Perivascular", `24` = "PDL",
+                              `81` = "Dental follicle", `22` = "Dental follicle", `71` = "Dental follicle",
+                              `10` = "Dental follicle", `35` = "Dental follicle", `11` = "Distal pulp",
+                              `14` = "Distal pulp", `70` = "Distal pulp", `3` = "Distal pulp",
+                              `13` = "Distal pulp", `36` = "Distal pulp", `76` = "Distal pulp",
+                              `15` = "Distal pulp", `43` = "Distal pulp", `44` = "Distal pulp",
+                              `30` = "Distal pulp", `6` = "Distal pulp", `48` = "Distal pulp",
+                              `46` = "Odontoblasts", `18` = "Apical papilla", `19` = "Apical papilla",
+                              `45` = "Apical papilla", `27` = "Apical papilla", `37` = "Apical papilla",
+                              `50` = "Apical pulp", `82` = "Apical pulp", `16` = "Apical pulp",
+                              `62` = "NK cells", `42` = "NK cells", `73` = "NK cells", `1` = "T cells",
+                              `56` = "T cells", `57` = "T cells", `9` = "T cells", `26` = "T cells",
+                              `63` = "T cells", `78` = "Unknown 1", `64` = "Unknown 2", `77` = "Naive T cells",
+                              `74` = "Cycling cells", `47` = "ERM",  `84` = "Mast cells", `28` = "Macrophages",
+                              `31` = "Macrophages", `8` = "Macrophages", `60` = "Macrophages",
+                              `67` = "Macrophages", `25` = "Macrophages", `29` = "Macrophages", `39` = "Macrophages")
+integrated$Annotation <- Idents(integrated)
+```
 
 ## Healthy HTA removal of background or ambient RNA using SoupX
 
+```
+# Adjust for SoupX
+integrated$Annotation <- gsub(' ', '_', integrated$Annotation)
+integrated$Annotation <- gsub('/', '_', integrated$Annotation)
+```
+
+```
+#Change from integrated to RNA, otherwise next command will fail
+DefaultAssay(integrated) <- "RNA"
+```
+
+```
+all.raw.data_integrated <- as.matrix(GetAssayData(integrated, slot = "counts"))
+
+list_cluster_integrated <- integrated@meta.data[[sprintf("Annotation")]]
+names(list_cluster_integrated) <- integrated@assays[["RNA"]]@data@Dimnames[[2]]
+list_cluster_integrated <- as.matrix(list_cluster_integrated)
+
+umap_integrated <- (Embeddings(integrated, reduction = "umap_80dims"))
+```
+
+```
+# Create a SoupChannel object; because we are starting from our Seurat object we do not have a file with empty droplets. We will import the raw counts matrix from Seurat both as the table of counts (toc) and table of droplets (tod)
+
+toc <- all.raw.data_integrated
+tod = all.raw.data_integrated
+sc = SoupChannel(tod, toc, calcSoupProfile = FALSE)
+```
+
+```
+# Calculate the Soup profile (of ambient RNA)
+toc = sc$toc
+scNoDrops = SoupChannel(toc, toc, calcSoupProfile = FALSE)
+soupProf = data.frame(row.names = rownames(toc), est = rowSums(toc)/sum(toc), 
+    counts = rowSums(toc))
+scNoDrops = setSoupProfile(scNoDrops, soupProf)
+```
+
+```
+# Add UMAP coordinates and cluster information from Seurat analysis to the SoupChannel object
+scNoDrops = setClusters(scNoDrops, setNames(list_cluster_integrated[,1], rownames(list_cluster_integrated)))
+scNoDrops = setDR(scNoDrops, umap_integrated[,c('UMAP80_1','UMAP80_2')])
+```
+
+```
+# Estimate the contamination fraction
+options(repr.plot.width=7, repr.plot.height=7)
+sc = autoEstCont(scNoDrops, verbose = TRUE)=
+```
+
+```
+# Remove the calculated contamination fraction from the original counts matrix, and add back to the original Seurat object. 
+out = adjustCounts(sc)
+integrated[["SoupX"]] <- CreateAssayObject(counts = out)
+```
+
+```
+# Plot the change in expression due to the correction, e.g. for Ambn and Amelx
+options(repr.plot.width=15, repr.plot.height=9)
+x1 <- plotChangeMap(sc, out, "CD4")
+x2 <- plotChangeMap(sc, out, "CD40")
+x3 <- plotChangeMap(sc, out, "VIM")
+x4 <- plotChangeMap(sc, out, "HBB")
+(x1+x2)/(x3+x4)
+```
+
+```
+# Normalize corrected counts, find variable features and scale data
+DefaultAssay(integrated) <- "SoupX"
+integrated <- NormalizeData(integrated)
+integrated <- FindVariableFeatures(integrated, selection.method = "vst", nfeatures = 2000)
+integrated <- ScaleData(integrated, verbose = FALSE)
+```
+
 ## Healthy HTA rPCA integration
+
+```
+# Cell cycle gene sets rom the Seurat package:
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+```
+
+```
+# After acquiring the data, we first perform standard normalization and variable feature selection on the list of objects
+
+DefaultAssay(integrated) <- "SoupX"
+tooth.list <- SplitObject(integrated, split.by = "Dataset_merged")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+    x <- CellCycleScoring(x, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+})
+```
+
+```
+# select features that are repeatedly variable across datasets for integration run PCA on each dataset using these features
+
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, vars.to.regress = c("S.Score", "G2M.Score"), verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE)
+})
+```
+
+```
+# Perform integration
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+
+healthy_integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+
+```
+# switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
+DefaultAssay(healthy_integrated) <- "integrated"
+```
+
+```
+# Run the standard workflow for visualization and clustering
+healthy_integrated <- ScaleData(healthy_integrated, verbose = FALSE)
+healthy_integrated <- RunPCA(healthy_integrated, verbose = FALSE, npcs = 100)
+```
+
+```
+# Perform UMAP dimensional reduction using umap-learn
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:40)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_40dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP40_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:50)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_50dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP50_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:60)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_60dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP60_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:80)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_80dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP80_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:100)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_100dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP100_", assay = DefaultAssay(integrated))
+```
+
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "Dataset_merged") +ggtitle("UMAP 40dims")
+p2 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "Dataset_merged") +ggtitle("UMAP 50dims")
+p2 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_60dims", group.by = "Dataset_merged") +ggtitle("UMAP 60dims")
+p2 <- DimPlot(integrated, reduction = "umap_60dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_80dims", group.by = "Dataset_merged") +ggtitle("UMAP 80dims")
+p2 <- DimPlot(integrated, reduction = "umap_80dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_100dims", group.by = "Dataset_merged") +ggtitle("UMAP 100dims")
+p2 <- DimPlot(integrated, reduction = "umap_100dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+```
+
+We continue with 80 dimensions
+
+```
+# Perform subclustering 
+DefaultAssay(integrated) <- "integrated" #needs to be set to integrated because this is what we ran PCA on
+integrated <- FindNeighbors(integrated, dims = 1:80)
+integrated <- FindClusters(integrated, resolution = c(1.6, 1.8, 2, 5))
+```
+
+```
+options(repr.plot.width=15, repr.plot.height=10)
+
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.6", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.6 res CCA")
+# res 1.8
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.8", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.8 res CCA")
+# res 2
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.2", label = TRUE) +
+    labs(title = "80 dims UMAP with 2 res CCA")
+# res 5
+DimPlot(integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.5", label = TRUE) +
+    labs(title = "80 dims UMAP with 5 res CCA")
+```
+
+We continues with res = 5 
+
+```
+Idents(integrated) <- integrated@meta.data$integrated_snn_res.5
+
+
+integrated <- RenameIdents(integrated, `57` = "Naive B cells", `58` = "B cells", `78` = "PDC",
+                              `15` = "Endothelial", `55` = "Endothelial", `61` = "Endothelial",
+                              `47` = "Endothelial", `75` = "Endothelial", `1` = "Endothelial",
+                              `39` = "Endothelial", `67` = "Endothelial", `52` = "Endothelial",
+                              `11` = "Endothelial", `32` = "Endothelial", `12` = "Endothelial",
+                              `56` = "Endothelial", `68` = "Endothelial", `69` = "Schwann/Oligo",
+                              `22` = "Schwann/Oligo", `36` = "Glia cells",
+                              `19` = "Glia cells", `79` = "Glia cells", `30` = "Glia cells",
+                              `72` = "Glia cells", `40` = "SMC", `23` = "SMC", `16` = "SMC",
+                              `50` = "SMC", `45` = "SMC", `60` = "SMC", `49` = "Perivascular",
+                              `6` = "Perivascular", `3` = "Perivascular", `59` = "Perivascular", `34` = "PDL",
+                              `71` = "PDL",`81` = "Dental follicle", `25` = "Dental follicle", `53` = "Dental follicle",
+                              `13` = "Dental follicle", `44` = "Dental follicle", `10` = "Distal pulp",
+                              `4` = "Distal pulp", `70` = "Distal pulp", `14` = "Distal pulp",
+                              `8` = "Distal pulp", `27` = "Distal pulp", `33` = "Distal pulp",
+                              `18` = "Distal pulp", `17` = "Distal pulp", `9` = "Distal pulp",
+                              `54` = "Distal pulp",
+                              `46` = "Odontoblasts", `37` = "Apical papilla", `5` = "Apical papilla",
+                              `43` = "Apical papilla", `48` = "Apical papilla", `21` = "Apical papilla",
+                              `80` = "Apical pulp", `31` = "Apical pulp", `35` = "Apical pulp",
+                              `62` = "NK cells", `42` = "NK cells", `73` = "NK cells", `64` = "NK cells", `0` = "T cells",
+                              `51` = "T cells", `7` = "T cells", `66` = "T cells", `29` = "T cells",
+                              `78` = "PDC", `76` = "Unknown 1", `77` = "Unknown 2", `65` = "Unknown 3",
+                              `74` = "Cycling cells", `41` = "ERM",  `82` = "Mast cells", `24` = "Macrophages",
+                              `26` = "Macrophages", `20` = "Macrophages", `2` = "Macrophages",
+                              `63` = "Macrophages", `38` = "Macrophages", `28` = "Macrophages")
+seu$Annotation <- Idents(seu)
+```
 
 ## Healthy HTA subclustering of dental epithelium
 
@@ -2306,6 +2751,14 @@ Tong_Periapical_Granuloma@meta.data$Technology <- "10X"
 ```
 
 ```
+# Add Dataset of origin to cell name to avoid possible identical cell names between datasets
+Tong_CAP_1 <- RenameCells(Tong_CAP_1, new.names = paste0(Tong_CAP_1$Dataset, "_", Cells(Tong_CAP_1)))
+Tong_CAP_2 <- RenameCells(Tong_CAP_2, new.names = paste0(Tong_CAP_2$Dataset, "_", Cells(Tong_CAP_2)))
+Tong_Periapical_Granuloma <- RenameCells(Tong_Periapical_Granuloma, new.names = paste0(Tong_Periapical_Granuloma$Dataset, "_", Cells(Tong_Periapical_Granuloma)))
+
+```
+
+```
 Tong_CAP_1@meta.data$Dataset_merged <- "Tong_CAP"
 Tong_CAP_2@meta.data$Dataset_merged <- "Tong_CAP"
 Tong_Periapical_Granuloma@meta.data$Dataset_merged <- "Tong_Periapical_Granuloma"
@@ -2313,4 +2766,33 @@ Tong_Periapical_Granuloma@meta.data$Dataset_merged <- "Tong_Periapical_Granuloma
 Opasawatchai_Deep_Carries_1@meta.data$Dataset_merged <- "Opasawatchai_Deep_Carries"
 Opasawatchai_Deep_Carries_2@meta.data$Dataset_merged <- "Opasawatchai_Deep_Carries"
 Opasawatchai_Enamel_Carries@meta.data$Dataset_merged <- "Opasawatchai_Enamel_Carries"
+```
+
+## Diseased HTA quality control
+
+```
+merged <- merge(x = Tong_CAP_1, y = c(Tong_CAP_2, Tong_Periapical_Granuloma, Opasawatchai_Deep_Carries_1, Opasawatchai_Deep_Carries_2, Opasawatchai_Enamel_Carries))
+
+tooth.list <- SplitObject(merged, split.by = "Dataset_merged")
+
+Tong_CAP <- tooth.list$Tong_CAP
+Tong_Periapical_Granuloma <- tooth.list$Tong_Periapical_Granuloma
+Opasawatchai_Deep_Carries <- tooth.list$Opasawatchai_Deep_Carries
+Opasawatchai_Enamel_Carries <- tooth.list$Opasawatchai_Enamel_Carries
+```
+
+```
+Tong_CAP <- subset(Tong_CAP, subset = nFeature_RNA > 1000 & nFeature_RNA < 3500 & percent.mito < 6 & nCount_RNA < 40000)
+Tong_Periapical_Granuloma <- subset(Tong_Periapical_Granuloma, subset = nFeature_RNA > 1100 & nFeature_RNA < 3500 & percent.mito < 5 & nCount_RNA < 40000)
+Opasawatchai_Deep_Carries <- subset(Opasawatchai_Deep_Carries, subset = nFeature_RNA > 900 & nFeature_RNA < 3500 & percent.mito < 3 & nCount_RNA < 40000)
+Opasawatchai_Enamel_Carries <- subset(Opasawatchai_Enamel_Carries, subset = nFeature_RNA > 800 & nFeature_RNA < 3000 & percent.mito < 5 & nCount_RNA < 40000)
+
+```
+
+## Diseased HTA initial integration
+
+```
+#Merge datasets
+diseased_merged_final_qc <- merge(x = Tong_CAP, y = c(Tong_Periapical_Granuloma, Opasawatchai_Deep_Carries,
+                                                      Opasawatchai_Enamel_Carries))
 ```
