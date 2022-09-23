@@ -31,6 +31,7 @@ Which can be found at: https://www.frontiersin.org/articles/10.3389/fcell.2022.1
   - [Diseased HTA Removal of background or ambient RNA using SoupX](#diseased-hta-removal-of-background-or-ambient-rna-using-soupx)
   - [Diseased HTA rPCA integration](#diseased-hta-rpca-integration)
   - [Integration healthy and diseased HTA](#integration-healthy-and-diseased-hta)
+  - [Integration of mouse and human dental epithelium](#integration-of-mouse-and-human-dental-epithelium)
 
 
 
@@ -2790,12 +2791,15 @@ integrated <- RenameIdents(integrated, `0` = "JE", `1` = "Pulp-Epi", `2` = "Peri
                               `6` = "AP-EMT", `7` = "AP-Epi")
 integrated@meta.data$epithelial <- Idents(integrated)
 ```
+```
+human_epithelial <- integrated
+```
 
 ### DEG analysis of dental epithelial subclusters
 
 ```
-DefaultAssay(integrated) <- "SoupX"
-all.markers <- FindAllMarkers(object = integrated, logfc.threshold = 0.25, min.pct = 0.25)
+DefaultAssay(human_epithelial) <- "SoupX"
+all.markers <- FindAllMarkers(object = human_epithelial, logfc.threshold = 0.25, min.pct = 0.25)
 ```
 
 ### Analysis of GRNs using pySCENIC
@@ -2813,13 +2817,13 @@ Afterwards, we move back to our R environment for further analyses using the pyS
 
 #### Extract required data
 ```
-normCounts <- integrated[["SoupX"]]@data
+normCounts <- human_epithelial[["SoupX"]]@data
 write.csv(normCounts, "./HTA_SCENIC/ERM/resources_folder/normCounts_4scenic.csv")
 
-annotation <- integrated@meta.data
+annotation <- human_epithelial@meta.data
 write.csv(annotation, "./HTA_SCENIC/ERM/resources_folder/annotation_4scenic.csv")
 
-umap_dims <- integrated@reductions$umap_50dims@cell.embeddings
+umap_dims <- human_epithelial@reductions$umap_50dims@cell.embeddings
 write.csv(umap_dims, "./HTA_SCENIC/ERM/resources_folder/dims_4scenic.csv")
 ```
 
@@ -3309,8 +3313,8 @@ auc_mtx <- read.csv("/HTA_SCENIC/ERM/auc_mtx.csv")
 auc_mtx$Cell <- gsub('\\.', '-', auc_mtx$Cell)
 ```
 ```
-UMAP_dims <- integrated@reductions$umap_30dims@cell.embeddings
-annotation <- integrated@meta.data
+UMAP_dims <- human_epithelial@reductions$umap_30dims@cell.embeddings
+annotation <- human_epithelial@meta.data
 ```
 ```
 anno <- data.frame(UMAP_dims[,-1],
@@ -3405,8 +3409,8 @@ DimPlot(integrated_regulons, reduction = "umap_30dims", group.by = "epithelial",
 ```
 Import pySCENIC results to original Seurat object of subclustered dental epithelium:
 ```
-integrated[["Regulons"]] <- CreateAssayObject(counts = auc_mtx_T)
-DefaultAssay(integrated) <- "Regulons"
+human_epithelial[["Regulons"]] <- CreateAssayObject(counts = auc_mtx_T)
+DefaultAssay(human_epithelial) <- "Regulons"
 ```
 
 ## Diseased HTA setup 
@@ -3853,6 +3857,319 @@ diseased_integrated$Annotation <- Idents(diseased_integrated)
 ```
 
 ## Integration healthy and diseased HTA
+
+```
+merged <- merge(x = healthy_integrated , y = diseased_integrated)
+DefaultAssay(merged) <- "SoupX"
+```
+```
+#Load in from Seurat:
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+```
+```
+tooth.list <- SplitObject(merged, split.by = "Dataset_merged")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+    x <- CellCycleScoring(x, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+})
+```
+```
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, verbose = FALSE, vars.to.regress = c("S.Score", "G2M.Score"))
+    x <- RunPCA(x, features = features, verbose = FALSE, npcs = 30, approx = FALSE) # approx = false https://github.com/satijalab/seurat/issues/1963
+})
+```
+```
+# Perform integration
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+```
+DefaultAssay(integrated) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+integrated <- ScaleData(integrated, verbose = FALSE)
+integrated <- RunPCA(integrated, verbose = FALSE, npcs = 100)
+```
+```
+# Run UMAP for different dimensions, save to object separately to be able to go back
+integrated2 <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:40)
+umap_dims <- integrated2@reductions$umap@cell.embeddings
+integrated2[["umap_40dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP40_", assay = DefaultAssay(integrated2))
+
+integrated2 <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:60)
+umap_dims <- integrated2@reductions$umap@cell.embeddings
+integrated2[["umap_60dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP60_", assay = DefaultAssay(integrated2))
+
+integrated2 <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:80)
+umap_dims <- integrated2@reductions$umap@cell.embeddings
+integrated[["umap_80dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP80_", assay = DefaultAssay(integrated2))
+
+integrated2 <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:100)
+umap_dims <- integrated2@reductions$umap@cell.embeddings
+integrated2[["umap_100dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP100_", assay = DefaultAssay(integrated2))
+```
+We continue with dims = 100
+```
+options(repr.plot.width=14, repr.plot.height=7)
+DimPlot(integrated2, reduction = "umap_100dims", group.by = "Dataset_merged", label = FALSE) +ggtitle("UMAP 100dims")
+DimPlot(integrated2, reduction = "umap_100dims", group.by = "Conditon", label = TRUE, repel = TRUE)
+DimPlot(integrated2, reduction = "umap_100dims", group.by = "Annotation_new", label = TRUE, repel = TRUE)
+```
+```
+Idents(integrated2) <- integrated2@meta.data$Annotation
+integrated2 <- RenameIdents(integrated2, `Distal Pulp` = "Distal Pulp", 
+                            `Perivascular` = "Perivascular", 
+                            `Macro/Neut` = "Macro/Neut",
+                            `Endothelial` = "Endothelial",
+                            `Glial` = "Glial",
+                            `SMC` = "SMC",
+                            `Schwann` = "Schwann",
+                              `Cycling Epithelial` = "Cycling",
+                              `Monocytes` = "Monocytes",
+                              `OB` = "OB", `NK` = "NK", `AP` = "AP",
+                              `Apical Pulp` = "Apical Pulp",
+                              `Granulocytes` = "Granulocytes", `pDC` = "pDC", 
+                              `B` = "B", `DF` = "DF", `Epithelial` = "Epithelial",
+                              `Naive B` = "Naive B",
+                              `DN T` = "DN T", `Mast` = "Mast",
+                              `Cycling` = "Cycling")
+```
+
+## Integration of mouse and human dental epithelium
+```
+human_epithelial
+mouse_epithelial <- epi_integrated #mouse epithelium Seurat object
+```
+Make sure metadata aligns, subset data to get correct pairings. Create groups for integration, and convert human gene names to mouse. 
+```
+human_epithelial@meta.data$Annotation <- "Human_Epithelium"
+```
+```
+mouse_epithelial <- subset(x = mta, idents = c("sAB", "mAB", "preAB", "DEP", "VEE/OEE", "SI", "Cycling SI", "Cycling DEP", "IEE/OEE", "SR"))
+mouse_epithelial@meta.data$epithelial <- mouse_epithelial@meta.data$Annotation
+```
+```
+DefaultAssay(mouse_epithelial) <- "SoupX"
+
+mouse_epithelial[['integrated']] <- NULL
+mouse_epithelial[['RNA']] <- NULL
+mouse_epithelial <- RenameAssays(object = mouse_epithelial, SoupX = 'RNA')
+
+mouse_epithelial@meta.data$Species <- "Mouse"
+mouse_epithelial@meta.data$Condition <- "Healthy"
+
+mouse_epithelial@meta.data$`integrated_snn_res.0.1` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.0.2` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.0.3` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.0.6` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.0.8` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.1.2` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.1.4` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.1.6` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.1.8` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.1` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.2` <- NULL
+mouse_epithelial@meta.data$`integrated_snn_res.5` <- NULL
+mouse_epithelial@meta.data$seurat_clusters <- NULL
+mouse_epithelial@meta.data$Split_Clusters <- NULL
+mouse_epithelial@meta.data$Split_Clusters_2 <- NULL
+mouse_epithelial@meta.data$predicted_doublet <- NULL
+mouse_epithelial@meta.data$Tissue <- mouse_epithelial@meta.data$Cell_source
+mouse_epithelial@meta.data$Cell_source <- NULL
+mouse_epithelial@meta.data$Group <- NULL
+mouse_epithelial@meta.data$Periodontal_Clusters <- NULL
+mouse_epithelial@meta.data$Incisor_Clusters <- NULL
+mouse_epithelial@meta.data$integrated_snn_res.10 <- NULL
+mouse_epithelial@meta.data$Molars_Clusters <- NULL
+mouse_epithelial@meta.data$nCount_integrated <- NULL
+mouse_epithelial@meta.data$nFeature_integrated <- NULL
+mouse_epithelial@meta.data$doublet_score <- NULL
+mouse_epithelial@meta.data$old.ident <- NULL
+mouse_epithelial@meta.data$Genotype <- NULL
+```
+Create integration groups:
+```
+Idents(mouse_epithelial) <- mouse_epithelial@meta.data$Dataset
+mouse_epithelial <- RenameIdents(mouse_epithelial, `Krivanek_molar` = "Group3", `Zhao_perio_1` = "Group3", 
+                    `Zhao_perio_2` = "Group3", `Krivanek_incisor` = "Group3", `Nagata` = "Group3",
+                    `Chen` = "Group4", `Chiba` = "Group5", `Chiba_2_epithelium` = "Group6", `Chiba_2_mesenchyme` = "Group7", 
+                    `Sharir` = "Group8", `Takahashi` = "Group9", `Wen` = "Group3")
+
+mouse_epithelial@meta.data$Integration_Groups <- Idents(mouse_epithelial)
+```
+
+```
+DefaultAssay(human_epithelial) <- "SoupX"
+
+human_epithelial[['integrated']] <- NULL
+human_epithelial[['RNA']] <- NULL
+human_epithelial <- RenameAssays(object = human_epithelial, SoupX = 'RNA')
+
+
+human_epithelial@meta.data$Dataset <- human_epithelial@meta.data$Dataset_merged
+human_epithelial@meta.data$Dataset_merged <- NULL
+
+human_epithelial@meta.data$Tooth_type <- human_epithelial@meta.data$Extraction
+human_epithelial@meta.data$Extraction <- NULL
+
+human_epithelial@meta.data$old.ident <- NULL
+human_epithelial@meta.data$`integrated_snn_res.1.6` <- NULL
+human_epithelial@meta.data$`integrated_snn_res.1.8` <- NULL
+human_epithelial@meta.data$`integrated_snn_res.2` <- NULL
+human_epithelial@meta.data$`integrated_snn_res.5` <- NULL
+human_epithelial@meta.data$seurat_clusters <- NULL
+
+
+geneTrans=read.table("../Human_pituitary/geneTrans.txt",sep=",",header=T,stringsAsFactors = F,row.names = 1)
+
+#need to fix underscore->dash conversion for geneTrans
+geneTrans$hg19=gsub("hg19_","",geneTrans$hg19)
+geneTrans$mm10=gsub("mm10_","",geneTrans$mm10)
+row.names(geneTrans)=gsub("_","-",row.names(geneTrans))
+
+#extract all raw counts into table for subsetting by human genes
+mm.raw=GetAssayData(human_epithelial,slot="counts")
+head(mm.raw)
+
+#subset rows in geneTrans (not necessary but simpler)
+mm.raw=mm.raw[row.names(mm.raw) %in% geneTrans$hg19,]
+head(mm.raw)
+
+#translate human symbols to mouse
+mm.trans=merge(x=mm.raw,y=geneTrans[,c(5,6)],by.x=0,by.y="hg19",all.x=T)
+rownames(mm.trans)=mm.trans$mm10
+mm.trans=mm.trans[,!(names(mm.trans) %in% c("Row.names","mm10"))]
+head(mm.trans)
+
+#load in metadata
+annotation <- human_epithelial@meta.data
+
+#create Seurat object with converted gene names
+human_epithelial_m <- CreateSeuratObject(counts = mm.trans, meta.data = annotation, project = "MTA_HTA", assay = 'RNA')
+```
+Merge data and then perform integration
+```
+merged <- merge(x = mouse_epithelial, y = human_epithelial_m, merge.data = TRUE)
+```
+```
+tooth.list <- SplitObject(merged, split.by = "Integration_Groups")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+})
+```
+```
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE) # approx = false https://github.com/satijalab/seurat/issues/1963
+})
+```
+```
+# Perform integration
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+```
+DefaultAssay(integrated) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+integrated <- ScaleData(integrated, verbose = FALSE)
+integrated <- RunPCA(integrated, verbose = FALSE)
+```
+```
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:10)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_10dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP10_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:20)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_20dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP20_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:30)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_30dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP30_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:40)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_40dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP40_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:50)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_50dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP50_", assay = DefaultAssay(integrated))
+```
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "Dataset", pt.size = 1) +ggtitle("umap_10dims")
+p2 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "Species", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "Dataset", pt.size = 1) +ggtitle("umap_20dims")
+p2 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "Species", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "Dataset", pt.size = 1) +ggtitle("umap_30dims")
+p2 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "Species", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "Dataset", pt.size = 1) +ggtitle("umap_40dims")
+p2 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "Species", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "Dataset", pt.size = 1) +ggtitle("umap_50dims")
+p2 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "Species", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+```
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "Annotation", pt.size = 1) +ggtitle("umap_10dims")
+p2 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "epithelial", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "Annotation", pt.size = 1) +ggtitle("umap_20dims")
+p2 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "epithelial", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "Annotation", pt.size = 1) +ggtitle("umap_30dims")
+p2 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "epithelial", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "Annotation", pt.size = 1) +ggtitle("umap_40dims")
+p2 <- DimPlot(integrated, reduction = "umap_40dims", group.by = "epithelial", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "Annotation", pt.size = 1) +ggtitle("umap_50dims")
+p2 <- DimPlot(integrated, reduction = "umap_50dims", group.by = "epithelial", label = TRUE, 
+    repel = TRUE, pt.size = 1)
+plot_grid(p1, p2)
+```
+
+
+
+
+
+
 
 
 
