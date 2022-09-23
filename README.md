@@ -28,7 +28,9 @@ Which can be found at: https://www.frontiersin.org/articles/10.3389/fcell.2022.1
   - [Diseased HTA Setup](#diseased-hta-setup)
   - [Diseased HTA Quality Control](#diseased-hta-quality-control)
   - [Diseased HTA initial integration](#diseased-hta-initial-integration)
-  - [Diseased HTA Removal of background or ambient RNA using SoupX)(#diseased-hta-removal-of-background-or-ambient-rna-using-soupx)
+  - [Diseased HTA Removal of background or ambient RNA using SoupX](#diseased-hta-removal-of-background-or-ambient-rna-using-soupx)
+  - [Diseased HTA rPCA integration](#diseased-hta-rpca-integration)
+  - [Integration healthy and diseased HTA](#integration-healthy-and-diseased-hta)
 
 
 
@@ -3494,5 +3496,382 @@ Opasawatchai_Enamel_Carries <- subset(Opasawatchai_Enamel_Carries, subset = nFea
 diseased_merged_final_qc <- merge(x = Tong_CAP, y = c(Tong_Periapical_Granuloma, Opasawatchai_Deep_Carries,
                                                       Opasawatchai_Enamel_Carries))
 ```
+```
+# Cell cycle gene sets rom the Seurat package:
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+```
+```
+# After acquiring the data, we first perform standard normalization and variable feature selection on the list of objects
+
+tooth.list <- SplitObject(diseased_merged_final_qc, split.by = "Dataset")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+    x <- CellCycleScoring(x, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+})
+```
+```
+# select features that are repeatedly variable across datasets for integration run PCA on each dataset using these features
+
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, vars.to.regress = c("S.Score", "G2M.Score"), verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE)
+})
+```
+```
+# Perform integration
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+
+diseased_integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+```
+# switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
+DefaultAssay(diseased_integrated) <- "integrated"
+```
+```
+# Run the standard workflow for visualization and clustering
+diseased_integrated <- ScaleData(diseased_integrated, verbose = FALSE)
+diseased_integrated <- RunPCA(diseased_integrated, verbose = FALSE, npcs = 100)
+```
+```
+# Perform UMAP dimensional reduction using umap-learn
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:40)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_40dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP40_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:50)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_50dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP50_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:60)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_60dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP60_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:80)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_80dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP80_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:100)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_100dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP100_", assay = DefaultAssay(diseased_integrated))
+```
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_40dims", group.by = "Dataset_merged") +ggtitle("UMAP 40dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_40dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_50dims", group.by = "Dataset_merged") +ggtitle("UMAP 50dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_50dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(diseased_integrated, reduction = "umap_60dims", group.by = "Dataset_merged") +ggtitle("UMAP 60dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_60dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "Dataset_merged") +ggtitle("UMAP 80dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_100dims", group.by = "Dataset_merged") +ggtitle("UMAP 100dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_100dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+```
+
+We continue with 80 dimensions
+
+```
+# Perform subclustering 
+DefaultAssay(diseased_integrated) <- "diseased_integrated" #needs to be set to integrated because this is what we ran PCA on
+diseased_integrated <- FindNeighbors(diseased_integrated, dims = 1:80)
+diseased_integrated <- FindClusters(diseased_integrated, resolution = c(1.6, 1.8, 2, 5))
+```
+```
+options(repr.plot.width=15, repr.plot.height=10)
+
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.6", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.6 res CCA")
+# res 1.8
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.8", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.8 res CCA")
+# res 2
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.2", label = TRUE) +
+    labs(title = "80 dims UMAP with 2 res CCA")
+# res 5
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.5", label = TRUE) +
+    labs(title = "80 dims UMAP with 5 res CCA")
+```
+
+We continue with resolution = 5 
+
+```
+# Rough, initial annotation
+Idents(diseased_integrated) <- diseased_integrated@meta.data$integrated_snn_res.5
+diseased_integrated <- RenameIdents(diseased_integrated, `25` = "Naive B", `11` = "B", `0` = "B",
+                              `1` = "B", `22` = "B", `5` = "B",
+                              `3` = "B", `4` = "B", `15` = "B",
+                              `6` = "B", `30` = "B", `18` = "B",
+                              `17` = "B", `13` = "B", `35` = "Endothelial",
+                              `24` = "Endothelial", `41` = "Endothelial", `20` = "Endothelial",
+                              `19` = "Endothelial", `37` = "Endothelial",
+                              `44` = "Glia", `46` = "Schwann", 
+                              `28` = "SMC", `38` = "SMC", `50` = "SMC",
+                              `14` = "Perivascular",
+                              `26` = "Perivascular", `23` = "PDL",
+                              `21` = "PDL",`32` = "Dental Follicle", `7` = "Dental Follicle", `12` = "Dental Follicle",
+                              `16` = "Dental follicle", `33` = "Dental follicle", `8` = "Distal pulp",
+                              `2` = "Distal pulp", 
+                              `40` = "Odontoblasts",
+                              `10` = "Apical Pulp", `9` = "Apical Pulp",
+                              `42` = "NK", `27` = "T",
+                              `29` = "T",
+                              `47` = "pDC",
+                              `45` = "Cycling", `39` = "Epithelial",  `49` = "Mast", `36` = "Macrophages",
+                              `31` = "Macrophages", `34` = "Macrophages", `43` = "Granulocytes", `48` = "Monocytes")
+diseased_integrated$Annotation <- Idents(diseased_integrated)
+```
+
 
 ## Diseased HTA Removal of background or ambient RNA using SoupX
+```
+diseased_integrated$Annotation <- gsub(' ', '_', diseased_integrated$Annotation)
+```
+```
+all.raw.data_integrated <- as.matrix(GetAssayData(diseased_integrated, slot = "counts"))
+
+list_cluster_integrated <- diseased_integrated@meta.data[[sprintf("Annotation")]]
+names(list_cluster_integrated) <- diseased_integrated@assays[["RNA"]]@data@Dimnames[[2]]
+list_cluster_integrated <- as.matrix(list_cluster_integrated)
+
+umap_integrated <- (Embeddings(diseased_integrated, reduction = "umap_80dims"))
+```
+```
+# Create a SoupChannel object; because we are starting from our Seurat object we do not have a file with empty droplets. We will import the raw counts matrix from Seurat both as the table of counts (toc) and table of droplets (tod)
+
+toc <- all.raw.data_integrated
+tod = all.raw.data_integrated
+sc = SoupChannel(tod, toc, calcSoupProfile = FALSE)
+```
+```
+# Calculate the Soup profile (of ambient RNA)
+toc = sc$toc
+scNoDrops = SoupChannel(toc, toc, calcSoupProfile = FALSE)
+soupProf = data.frame(row.names = rownames(toc), est = rowSums(toc)/sum(toc), 
+    counts = rowSums(toc))
+scNoDrops = setSoupProfile(scNoDrops, soupProf)
+```
+```
+# Add UMAP coordinates and cluster information from Seurat analysis to the SoupChannel object
+scNoDrops = setClusters(scNoDrops, setNames(list_cluster_integrated[,1], rownames(list_cluster_integrated)))
+scNoDrops = setDR(scNoDrops, umap_integrated[,c('UMAP80_1','UMAP80_2')])
+```
+
+```
+# Estimate the contamination fraction
+options(repr.plot.width=7, repr.plot.height=7)
+sc = autoEstCont(scNoDrops, verbose = TRUE)
+```
+
+```
+# Remove the calculated contamination fraction from the original counts matrix, and add back to the original Seurat object. 
+out = adjustCounts(sc)
+diseased_integrated[["SoupX"]] <- CreateAssayObject(counts = out)
+```
+```
+# Plot the change in expression due to the correction, e.g. for Ambn and Amelx
+options(repr.plot.width=15, repr.plot.height=9)
+x1 <- plotChangeMap(sc, out, "CD4")
+x2 <- plotChangeMap(sc, out, "CD40")
+x3 <- plotChangeMap(sc, out, "VIM")
+x4 <- plotChangeMap(sc, out, "HBB")
+(x1+x2)/(x3+x4)
+```
+```
+# Normalize corrected counts, find variable features and scale data
+DefaultAssay(diseased_integrated) <- "SoupX"
+diseased_integrated <- NormalizeData(diseased_integrated)
+diseased_integrated <- FindVariableFeatures(diseased_integrated, selection.method = "vst", nfeatures = 2000)
+diseased_integrated <- ScaleData(diseased_integrated, verbose = FALSE)
+```
+
+## Diseased HTA rPCA integration
+```
+# Cell cycle gene sets rom the Seurat package:
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+```
+```
+# After acquiring the data, we first perform standard normalization and variable feature selection on the list of objects
+
+DefaultAssay(diseased_integrated) <- "SoupX"
+tooth.list <- SplitObject(diseased_integrated, split.by = "Dataset")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+    x <- CellCycleScoring(x, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+})
+```
+```
+# select features that are repeatedly variable across datasets for integration run PCA on each dataset using these features
+
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, vars.to.regress = c("S.Score", "G2M.Score"), verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE)
+})
+```
+```
+# Perform integration
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+
+diseased_integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+```
+# switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
+DefaultAssay(diseased_integrated) <- "integrated"
+```
+```
+# Run the standard workflow for visualization and clustering
+diseased_integrated <- ScaleData(healthy_integrated, verbose = FALSE)
+diseased_integrated <- RunPCA(healthy_integrated, verbose = FALSE, npcs = 100)
+```
+```
+# Perform UMAP dimensional reduction using umap-learn
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:40)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_40dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP40_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:50)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_50dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP50_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:60)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_60dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP60_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:80)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_80dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP80_", assay = DefaultAssay(diseased_integrated))
+
+diseased_integrated <- RunUMAP(diseased_integrated, umap.method = "umap-learn", dims = 1:100)
+umap_dims <- diseased_integrated@reductions$umap@cell.embeddings
+diseased_integrated[["umap_100dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP100_", assay = DefaultAssay(diseased_integrated))
+```
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_40dims", group.by = "Dataset_merged") +ggtitle("UMAP 40dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_40dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_50dims", group.by = "Dataset_merged") +ggtitle("UMAP 50dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_50dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(diseased_integrated, reduction = "umap_60dims", group.by = "Dataset_merged") +ggtitle("UMAP 60dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_60dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "Dataset_merged") +ggtitle("UMAP 80dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(diseased_integrated, reduction = "umap_100dims", group.by = "Dataset_merged") +ggtitle("UMAP 100dims")
+p2 <- DimPlot(diseased_integrated, reduction = "umap_100dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+```
+
+We continue with 80 dimensions
+
+```
+# Perform subclustering 
+DefaultAssay(diseased_integrated) <- "diseased_integrated" #needs to be set to integrated because this is what we ran PCA on
+diseased_integrated <- FindNeighbors(diseased_integrated, dims = 1:80)
+diseased_integrated <- FindClusters(diseased_integrated, resolution = c(1.6, 1.8, 2, 5))
+```
+```
+options(repr.plot.width=15, repr.plot.height=10)
+
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.6", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.6 res CCA")
+# res 1.8
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.1.8", label = TRUE) +
+    labs(title = "80 dims UMAP with 1.8 res CCA")
+# res 2
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.2", label = TRUE) +
+    labs(title = "80 dims UMAP with 2 res CCA")
+# res 5
+DimPlot(diseased_integrated, reduction = "umap_80dims", group.by = "integrated_snn_res.5", label = TRUE) +
+    labs(title = "80 dims UMAP with 5 res CCA")
+```
+
+We continues with res = 5 
+
+```
+Idents(diseased_integrated) <- diseased_integrated@meta.data$integrated_snn_res.5
+
+
+diseased_integrated <- RenameIdents(diseased_integrated, `24` = "Naive B", `2` = "B", `29` = "B",
+                              `13` = "B", `9` = "B", `5` = "B",
+                              `8` = "B", `3` = "B", `16` = "B",
+                              `20` = "B", `19` = "B", `27` = "B",
+                              `15` = "B", `21` = "B", `4` = "B", `17` = "Endothelial",
+                              `33` = "Endothelial", `26` = "Endothelial", `18` = "Endothelial",
+                              `39` = "Endothelial",
+                              `46` = "Glia", `47` = "Schwann", 
+                              `23` = "SMC", `52` = "SMC", `41` = "Perivascular",
+                              `31` = "Perivascular",
+                              `11` = "Perivascular", `35` = "PDL",
+                              `34` = "DF", `36` = "DF", `7` = "DF",
+                              `22` = "DF", `37` = "DF",  `14` = "DF",
+                              `0` = "DF",`30` = "Distal Pulp",
+                              `6` = "Distal Pulp", `1` = "Distal Pulp", 
+                              `43` = "OB",
+                              `12` = "Apical Pulp",
+                              `44` = "NK", `25` = "T",
+                              `28` = "T",
+                              `48` = "pDC",
+                              `49` = "Cycling", `42` = "Epithelial",  `51` = "Mast", `50` = "Macro/Neut",
+                              `32` = "Macro/Neut", `40` = "Macro/Neut",  `38` = "Macro/Neut",
+                              `45` = "Granulocytes", `10` = "B")
+diseased_integrated$Annotation <- Idents(diseased_integrated)
+```
+
+## Integration healthy and diseased HTA
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
