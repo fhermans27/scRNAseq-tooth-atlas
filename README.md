@@ -28,9 +28,6 @@ Which can be found at: https://www.frontiersin.org/articles/10.3389/fcell.2022.1
 
 
 
-
-## Healthy HTA subclustering of dental epithelium
-
 # Mouse Tooth Atlas
 ## MTA setup
 
