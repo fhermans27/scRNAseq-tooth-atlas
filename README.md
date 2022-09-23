@@ -18,8 +18,16 @@ This repository contains the R and Python code used perform the single-cell RNA-
   - [Subclustering of mouse epithelial clusters (focus on ameloblast lineage)](#subclustering-of-mouse-epithelium)
 
 - [Human Tooth Atlas](#human-tooth-atlas)
-  - [Setup](#hta-setup)
-  - [Quality Control](#hta-quality-control)
+  - [Healthy HTA Setup](#healthy-hta-setup)
+  - [Healthy HTA Quality Control](#healthy-hta-quality-control)
+  - [Healthy HTA Removal of background or ambient RNA using SoupX](#healthy-hta-removal-of-background-or-ambient-rna-using-soupx)
+  - [Healthy HTA rPCA integration](#healthy-hta-rpca-integration)
+  - [Healthy HTA subclustering of dental epithelium](#healthy-hta-subclustering-of-dental-epithelium)
+
+
+
+
+## Healthy HTA subclustering of dental epithelium
 
 # Mouse Tooth Atlas
 ## MTA setup
@@ -1847,22 +1855,416 @@ print(ht)
 
 # Human Tooth Atlas
 
-## Healthy HTA - setup
+## Healthy HTA setup
 
-## Healthy HTA - quality control
 
-## Healthy HTA - initial integration
+```
+suppressMessages({
+#set working directory
+setwd("./HTA")
+getwd()
 
-## Healthy HTA - removal of background or ambient RNA using SoupX
+#load in required software packages
+suppressWarnings({
+library(reticulate)
+library(dplyr)
+library(Seurat)
+library(SingleCellExperiment, quietly = TRUE)
+library(scater, quietly = TRUE)
+library(tidyr)
+library(purrr)
+library(cowplot)
+library(ggrepel)
+library(viridis)
+library(gridExtra)
+library(biomaRt)
+library(schex)
+library(Nebulosa)
+library(dittoSeq)
+library(escape)
+library(SoupX)
+library(monocle3) 
+})
 
-## Healthy HTA - rPCA integration
+# choose random seed for reproducibility
+set.seed(27011995)
 
-## Healthy HTA - subclustering of dental epithelium (DE)
+})
+```
+
+Import all datasets, and add relevant metadata obtained from the publications. 
+
+```
+#Import data
+GSM4998457 <- Read10X(data.dir = "./GSM4998457_Pagella_Pulp_1")
+Pagella_Pulp_1 <- CreateSeuratObject(counts = GSM4998457, project = "GSM4998457", min.cells = 3, min.features = 200)
+
+GSM4998458 <- Read10X(data.dir = "./GSM4998458_Pagella_Pulp_2")
+Pagella_Pulp_2 <- CreateSeuratObject(counts = GSM4998458, project = "GSM4998458", min.cells = 3, min.features = 200)
+
+GSM4998459 <- Read10X(data.dir = "./GSM4998459_Pagella_Pulp_3")
+Pagella_Pulp_3 <- CreateSeuratObject(counts = GSM4998459, project = "GSM4998459", min.cells = 3, min.features = 200)
+
+GSM4998460 <- Read10X(data.dir = "./GSM4998460_Pagella_Pulp_4")
+Pagella_Pulp_4 <- CreateSeuratObject(counts = GSM4998460, project = "GSM4998460", min.cells = 3, min.features = 200)
+
+GSM4998461 <- Read10X(data.dir = "./GSM4998461_Pagella_Pulp_5")
+Pagella_Pulp_5 <- CreateSeuratObject(counts = GSM4998461, project = "GSM4998461", min.cells = 3, min.features = 200)
+
+GSM4904134 <- Read10X(data.dir = "./GSM4904134_Pagella_Perio_1")
+Pagella_Perio_1 <- CreateSeuratObject(counts = GSM4904134, project = "GSM4904134", min.cells = 3, min.features = 200)
+
+GSM4904135 <- Read10X(data.dir = "./GSM4904135_Pagella_Perio_2")
+Pagella_Perio_2 <- CreateSeuratObject(counts = GSM4904135, project = "GSM4904135", min.cells = 3, min.features = 200)
+
+GSM4904136 <- Read10X(data.dir = "./GSM4904136_Pagella_Perio_3")
+Pagella_Perio_3 <- CreateSeuratObject(counts = GSM4904136, project = "GSM4904136", min.cells = 3, min.features = 200)
+
+GSM4904137 <- Read10X(data.dir = "./GSM4904137_Pagella_Perio_4")
+Pagella_Perio_4 <- CreateSeuratObject(counts = GSM4904137, project = "GSM4904137", min.cells = 3, min.features = 200)
+
+GSM4904138 <- Read10X(data.dir = "./GSM4904138_Pagella_Perio_5")
+Pagella_Perio_5 <- CreateSeuratObject(counts = GSM4904138, project = "GSM4904138", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek apical papilla 1 (human germinectomy)
+data = read.table(gzfile("./GSM4365601_counts_human_germinectomy.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('\\.', '-', colnames(data))
+colnames(data) <- gsub('human_germinectomy_1_one', 'Krivanek_Apical_Papilla_1', colnames(data))
+
+#Create Seurat Object
+Krivanek_Apical_Papilla_1 <- CreateSeuratObject(counts = data, project = "GSM4365601", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek apical papilla 2 (apical_papilla_female_15yo)
+data = read.table(gzfile("./GSM4365609_counts_human_germ_molar_apical_papilla_female_15yo.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('\\.', '-', colnames(data))
+colnames(data) <- gsub('human_germ_molar_apical_papilla_female_15yo_one', 'Krivanek_Apical_Papilla_2', colnames(data))
+
+#Create Seurat Object
+Krivanek_Apical_Papilla_2 <- CreateSeuratObject(counts = data, project = "GSM4365609", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek dental pulp (human_molar_pulp)
+data = read.table(gzfile("./GSM4365602_counts_human_molar_pulp.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('\\.', '-', colnames(data))
+colnames(data) <- gsub('human_molar_pulp_4_one', 'Krivanek_Dental_Pulp', colnames(data))
+
+#Create Seurat Object
+Krivanek_Dental_Pulp <- CreateSeuratObject(counts = data3, project = "GSM4365602", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek whole molar 1 (molar_healthy_1)
+data = read.table(gzfile("./GSM4365608_counts_human_molar_healthy_1.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('\\.', '-', colnames(data))
+colnames(data) <- gsub('human_molar_healthy_1_one', 'Krivanek_Whole_Molar_1', colnames(data))
+
+#Create Seurat Object
+Krivanek_Whole_Molar_1 <- CreateSeuratObject(counts = data4, project = "GSM4365608", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek whole molar 2 (molar_healthy_2)
+data = read.table(gzfile("./GSM4365607_counts_human_molar_healthy_2.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('\\.', '-', colnames(data))
+colnames(data) <- gsub('human_molar_healthy_2_one', 'Krivanek_Whole_Molar_2', colnames(data))
+
+#Create Seurat Object
+Krivanek_Whole_Molar_2 <- CreateSeuratObject(counts = data5, project = "GSM4365607", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Krivanek whole molar 3 (No5_24_yo_healthy_retained)
+data = read.table(gzfile("./GSM4365610_counts_No5_24_yo_healthy_retained.txt.gz"), sep=" ", header = TRUE, row.names = NULL)
+
+names <- make.unique(data$row.names)
+rownames(data) <- names
+data <- data[,-1] # get rid of old names
+
+#Fix cell names
+colnames(data) <- gsub('\\.', '-', colnames(data))
+colnames(data) <- gsub('No5_24_yo_healthy_retained_one', 'Krivanek_Whole_Molar_3', colnames(data))
+
+#Create Seurat Object
+Krivanek_Whole_Molar_3 <- CreateSeuratObject(counts = data6, project = "GSM4365610", min.cells = 3, min.features = 200)
+```
+
+```
+# Import of Shi tooth germ dataset (from Mendeley Data, Robject)
+load("/staging/leuven/stg_00073/SC_Florian/Human/Song_human_tooth_germ.RData")
+Song_Tooth_Germ <- all
+```
+
+```
+# Calculate % of mitochondrial genes per cell, and append this to the metadata
+Pagella_Pulp_1[["percent.mito"]] <- PercentageFeatureSet(Pagella_Pulp_1, pattern = "^MT-")
+Pagella_Pulp_2[["percent.mito"]] <- PercentageFeatureSet(Pagella_Pulp_2, pattern = "^MT-")
+Pagella_Pulp_3[["percent.mito"]] <- PercentageFeatureSet(Pagella_Pulp_3, pattern = "^MT-")
+Pagella_Pulp_4[["percent.mito"]] <- PercentageFeatureSet(Pagella_Pulp_4, pattern = "^MT-")
+Pagella_Pulp_5[["percent.mito"]] <- PercentageFeatureSet(Pagella_Pulp_5, pattern = "^MT-")
+Pagella_Perio_1[["percent.mito"]] <- PercentageFeatureSet(Pagella_Perio_1, pattern = "^MT-")
+Pagella_Perio_2[["percent.mito"]] <- PercentageFeatureSet(Pagella_Perio_2, pattern = "^MT-")
+Pagella_Perio_3[["percent.mito"]] <- PercentageFeatureSet(Pagella_Perio_3, pattern = "^MT-")
+Pagella_Perio_4[["percent.mito"]] <- PercentageFeatureSet(Pagella_Perio_4, pattern = "^MT-")
+Pagella_Perio_5[["percent.mito"]] <- PercentageFeatureSet(Pagella_Perio_5, pattern = "^MT-")
+Krivanek_Apical_Papilla_1[["percent.mito"]] <- PercentageFeatureSet(Krivanek_Apical_Papilla_1, pattern = "^MT-")
+Krivanek_Apical_Papilla_2[["percent.mito"]] <- PercentageFeatureSet(Krivanek_Apical_Papilla_2, pattern = "^MT-")
+Krivanek_Dental_Pulp[["percent.mito"]] <- PercentageFeatureSet(Krivanek_Dental_Pulp, pattern = "^MT-")
+Krivanek_Whole_Molar_1[["percent.mito"]] <- PercentageFeatureSet(Krivanek_Whole_Molar_1, pattern = "^MT-")
+Krivanek_Whole_Molar_2[["percent.mito"]] <- PercentageFeatureSet(Krivanek_Whole_Molar_2, pattern = "^MT-")
+Krivanek_Whole_Molar_3[["percent.mito"]] <- PercentageFeatureSet(Krivanek_Whole_Molar_3, pattern = "^MT-")
+#Song_Tooth_Germ dataset already contains percent.mito metadata
+```
+
+```
+# Add extra metadata to Seurat object
+Pagella_Pulp_1@meta.data$Dataset <- "Pagella Pulp 1"
+Pagella_Pulp_1@meta.data$Tissue <- "Dental Pulp"
+Pagella_Pulp_1@meta.data$Extraction <- "Third Molar"
+Pagella_Pulp_1@meta.data$Species <- "Human"
+Pagella_Pulp_1@meta.data$Age <- "18-35"
+Pagella_Pulp_1@meta.data$Conditon <- "Healthy"
+Pagella_Pulp_1@meta.data$Technology <- "10X"
+
+Pagella_Pulp_2@meta.data$Dataset <- "Pagella Pulp 2"
+Pagella_Pulp_2@meta.data$Tissue <- "Dental Pulp"
+Pagella_Pulp_2@meta.data$Extraction <- "Third Molar"
+Pagella_Pulp_2@meta.data$Species <- "Human"
+Pagella_Pulp_2@meta.data$Age <- "18-35"
+Pagella_Pulp_2@meta.data$Conditon <- "Healthy"
+Pagella_Pulp_2@meta.data$Technology <- "10X"
+
+Pagella_Pulp_3@meta.data$Dataset <- "Pagella Pulp 3"
+Pagella_Pulp_3@meta.data$Tissue <- "Dental Pulp"
+Pagella_Pulp_3@meta.data$Extraction <- "Third Molar"
+Pagella_Pulp_3@meta.data$Species <- "Human"
+Pagella_Pulp_3@meta.data$Age <- "18-35"
+Pagella_Pulp_3@meta.data$Conditon <- "Healthy"
+Pagella_Pulp_3@meta.data$Technology <- "10X"
+
+Pagella_Pulp_4@meta.data$Dataset <- "Pagella Pulp 4"
+Pagella_Pulp_4@meta.data$Tissue <- "Dental Pulp"
+Pagella_Pulp_4@meta.data$Extraction <- "Third Molar"
+Pagella_Pulp_4@meta.data$Species <- "Human"
+Pagella_Pulp_4@meta.data$Age <- "18-35"
+Pagella_Pulp_4@meta.data$Conditon <- "Healthy"
+Pagella_Pulp_4@meta.data$Technology <- "10X"
+
+Pagella_Pulp_5@meta.data$Dataset <- "Pagella Pulp 5"
+Pagella_Pulp_5@meta.data$Tissue <- "Dental Pulp"
+Pagella_Pulp_5@meta.data$Extraction <- "Third Molar"
+Pagella_Pulp_5@meta.data$Species <- "Human"
+Pagella_Pulp_5@meta.data$Age <- "18-35"
+Pagella_Pulp_5@meta.data$Conditon <- "Healthy"
+Pagella_Pulp_5@meta.data$Technology <- "10X"
+
+Pagella_Perio_1@meta.data$Dataset <- "Pagella Perio 1"
+Pagella_Perio_1@meta.data$Tissue <- "Periodontium"
+Pagella_Perio_1@meta.data$Extraction <- "Third Molar"
+Pagella_Perio_1@meta.data$Species <- "Human"
+Pagella_Perio_1@meta.data$Age <- "18-35"
+Pagella_Perio_1@meta.data$Conditon <- "Healthy"
+Pagella_Perio_1@meta.data$Technology <- "10X"
+
+Pagella_Perio_1@meta.data$Dataset <- "Pagella Perio 1"
+Pagella_Perio_1@meta.data$Tissue <- "Periodontium"
+Pagella_Perio_1@meta.data$Extraction <- "Third Molar"
+Pagella_Perio_1@meta.data$Species <- "Human"
+Pagella_Perio_1@meta.data$Age <- "18-35"
+Pagella_Perio_1@meta.data$Conditon <- "Healthy"
+Pagella_Perio_1@meta.data$Technology <- "10X"
+
+Pagella_Perio_3@meta.data$Dataset <- "Pagella Perio 3"
+Pagella_Perio_3@meta.data$Tissue <- "Periodontium"
+Pagella_Perio_3@meta.data$Extraction <- "Third Molar"
+Pagella_Perio_3@meta.data$Species <- "Human"
+Pagella_Perio_3@meta.data$Age <- "18-35"
+Pagella_Perio_3@meta.data$Conditon <- "Healthy"
+Pagella_Perio_3@meta.data$Technology <- "10X"
+
+Pagella_Perio_4@meta.data$Dataset <- "Pagella Perio 4"
+Pagella_Perio_4@meta.data$Tissue <- "Periodontium"
+Pagella_Perio_4@meta.data$Extraction <- "Third Molar"
+Pagella_Perio_4@meta.data$Species <- "Human"
+Pagella_Perio_4@meta.data$Age <- "18-35"
+Pagella_Perio_4@meta.data$Conditon <- "Healthy"
+Pagella_Perio_4@meta.data$Technology <- "10X"
+
+Pagella_Perio_5@meta.data$Dataset <- "Pagella Perio 5"
+Pagella_Perio_5@meta.data$Tissue <- "Periodontium"
+Pagella_Perio_5@meta.data$Extraction <- "Third Molar"
+Pagella_Perio_5@meta.data$Species <- "Human"
+Pagella_Perio_5@meta.data$Age <- "18-35"
+Pagella_Perio_5@meta.data$Conditon <- "Healthy"
+Pagella_Perio_5@meta.data$Technology <- "10X"
+
+Krivanek_Apical_Papilla_1@meta.data$orig.ident <- NULL
+Krivanek_Apical_Papilla_1@meta.data$orig.ident <- "GSM4365601" #metadata not correct --> adapted 
+Krivanek_Apical_Papilla_1@meta.data$Dataset <- "Apical_Papilla_1"
+Krivanek_Apical_Papilla_1@meta.data$Tissue <- "Apical Papilla"
+Krivanek_Apical_Papilla_1@meta.data$Extraction <- "Wisdom Tooth"
+Krivanek_Apical_Papilla_1@meta.data$Species <- "Human"
+Krivanek_Apical_Papilla_1@meta.data$Age <- "18-31"
+Krivanek_Apical_Papilla_1@meta.data$Conditon <- "Healthy"
+Krivanek_Apical_Papilla_1@meta.data$Technology <- "10X"
+
+Krivanek_Apical_Papilla_2@meta.data$orig.ident <- NULL
+Krivanek_Apical_Papilla_2@meta.data$orig.ident <- "GSM4365609" #metadata not correct --> adapted 
+Krivanek_Apical_Papilla_2@meta.data$Dataset <- "Apical_Papilla_2"
+Krivanek_Apical_Papilla_2@meta.data$Tissue <- "Apical Papilla"
+Krivanek_Apical_Papilla_2@meta.data$Extraction <- "Wisdom Tooth"
+Krivanek_Apical_Papilla_2@meta.data$Species <- "Human"
+Krivanek_Apical_Papilla_2@meta.data$Age <- "15"
+Krivanek_Apical_Papilla_2@meta.data$Conditon <- "Healthy"
+Krivanek_Apical_Papilla_2@meta.data$Technology <- "10X"
+
+Krivanek_Dental_Pulp@meta.data$orig.ident <- NULL
+Krivanek_Dental_Pulp@meta.data$orig.ident <- "GSM4365602" #metadata not correct --> adapted
+Krivanek_Dental_Pulp@meta.data$Dataset <- "Dental_Pulp"
+Krivanek_Dental_Pulp@meta.data$Tissue <- "Dental Pulp"
+Krivanek_Dental_Pulp@meta.data$Extraction <- "Wisdom Tooth"
+Krivanek_Dental_Pulp@meta.data$Species <- "Human"
+Krivanek_Dental_Pulp@meta.data$Age <- "18-31"
+Krivanek_Dental_Pulp@meta.data$Conditon <- "Healthy"
+Krivanek_Dental_Pulp@meta.data$Technology <- "10X"
+
+Krivanek_Whole_Molar_1@meta.data$orig.ident <- NULL
+Krivanek_Whole_Molar_1@meta.data$orig.ident <- "GSM4365608" #metadata not correct --> adapted
+Krivanek_Whole_Molar_1@meta.data$Dataset <- "Whole_Molar_1"
+Krivanek_Whole_Molar_1@meta.data$Tissue <- "Whole Molar"
+Krivanek_Whole_Molar_1@meta.data$Extraction <- "Wisdom Tooth"
+Krivanek_Whole_Molar_1@meta.data$Species <- "Human"
+Krivanek_Whole_Molar_1@meta.data$Age <- "18-31"
+Krivanek_Whole_Molar_1@meta.data$Conditon <- "Healthy"
+Krivanek_Whole_Molar_1@meta.data$Technology <- "10X"
+
+Krivanek_Whole_Molar_2@meta.data$orig.ident <- NULL
+Krivanek_Whole_Molar_2@meta.data$orig.ident <- "GSM4365607" #metadata not correct --> adapted
+Krivanek_Whole_Molar_2@meta.data$Dataset <- "Whole_Molar_2"
+Krivanek_Whole_Molar_2@meta.data$Tissue <- "Whole Molar"
+Krivanek_Whole_Molar_2@meta.data$Extraction <- "Wisdom Tooth"
+Krivanek_Whole_Molar_2@meta.data$Species <- "Human"
+Krivanek_Whole_Molar_2@meta.data$Age <- "18-31"
+Krivanek_Whole_Molar_2@meta.data$Conditon <- "Healthy"
+Krivanek_Whole_Molar_2@meta.data$Technology <- "10X"
+
+Krivanek_Whole_Molar_3@meta.data$orig.ident <- NULL
+Krivanek_Whole_Molar_3@meta.data$orig.ident <- "GSM4365610" #metadata not correct --> adapted
+Krivanek_Whole_Molar_3@meta.data$Dataset <- "Whole_Molar_3"
+Krivanek_Whole_Molar_3@meta.data$Tissue <- "Whole Molar"
+Krivanek_Whole_Molar_3@meta.data$Extraction <- "Wisdom Tooth"
+Krivanek_Whole_Molar_3@meta.data$Species <- "Human"
+Krivanek_Whole_Molar_3@meta.data$Age <- "24"
+Krivanek_Whole_Molar_3@meta.data$Conditon <- "Healthy"
+Krivanek_Whole_Molar_3@meta.data$Technology <- "10X"
+
+Song_Tooth_Germ@meta.data$S.Score <- NULL
+Song_Tooth_Germ@meta.data$G2M.Score <- NULL
+Song_Tooth_Germ@meta.data$Phase <- NULL
+Song_Tooth_Germ@meta.data$CC.Difference <- NULL
+Song_Tooth_Germ@meta.data$RNA_snn_res.0.8 <- NULL
+Song_Tooth_Germ@meta.data$Dataset <- "Human_Tooth_Germ"
+Song_Tooth_Germ@meta.data$Tissue <- "Tooth Germ"
+Song_Tooth_Germ@meta.data$Extraction <- "Third molars"
+Song_Tooth_Germ@meta.data$Species <- "Human"
+Song_Tooth_Germ@meta.data$Age <- "Unkown"
+Song_Tooth_Germ@meta.data$Conditon <- "Healthy"
+Song_Tooth_Germ@meta.data$Technology <- "BD Rhapsody"
+```
+
+
+## Healthy HTA quality control
+
+## Healthy HTA initial integration
+
+## Healthy HTA removal of background or ambient RNA using SoupX
+
+## Healthy HTA rPCA integration
+
+## Healthy HTA subclustering of dental epithelium
 
 ### xxx
 
 ### xxx
 
 
+## Diseased HTA setup 
 
+```
+GSM5509264 <- Read10X(data.dir = "./Tong_GEO_2021/SampleA") #Lin dataset
+Tong_CAP_1 <- CreateSeuratObject(counts = GSM5509264, project = "GSM5509264", min.cells = 3, min.features = 200)
+
+GSM5509265 <- Read10X(data.dir = "./Tong_GEO_2021/SampleB") #Lin dataset
+Tong_CAP_2 <- CreateSeuratObject(counts = GSM5509265, project = "GSM5509265", min.cells = 3, min.features = 200)
+
+GSM5509266 <- Read10X(data.dir = "./Tong_GEO_2021/SampleC") #Lin dataset
+Tong_Periapical_Granuloma <- CreateSeuratObject(counts = GSM5509266, project = "GSM5509266", min.cells = 3, min.features = 200)
+```
+
+```
+Tong_CAP_1[["percent.mito"]] <- PercentageFeatureSet(Tong_CAP_1, pattern = "^MT-")
+Tong_CAP_2[["percent.mito"]] <- PercentageFeatureSet(Tong_CAP_2, pattern = "^MT-")
+Tong_Periapical_Granuloma[["percent.mito"]] <- PercentageFeatureSet(Tong_Periapical_Granuloma, pattern = "^MT-")
+```
+
+```
+# Add extra metadata to Seurat object
+Tong_CAP_1@meta.data$Dataset <- "Tong_CAP_1"
+Tong_CAP_1@meta.data$Tissue <- "Periapical Tissue"
+Tong_CAP_1@meta.data$Extraction <- "Maxillary Posterior Teeth Right"
+Tong_CAP_1@meta.data$Species <- "Human"
+Tong_CAP_1@meta.data$Age <- "26"
+Tong_CAP_1@meta.data$Conditon <- "Chronical Apical Peridontitis"
+Tong_CAP_1@meta.data$Technology <- "10X"
+
+Tong_CAP_2@meta.data$Dataset <- "Tong_CAP_2"
+Tong_CAP_2@meta.data$Tissue <- "Periapical Tissue"
+Tong_CAP_2@meta.data$Extraction <- "Maxillary Posterior Teeth Right"
+Tong_CAP_2@meta.data$Species <- "Human"
+Tong_CAP_2@meta.data$Age <- "44"
+Tong_CAP_2@meta.data$Conditon <- "Chronical Apical Peridontitis"
+Tong_CAP_2@meta.data$Technology <- "10X"
+
+Tong_Periapical_Granuloma@meta.data$Dataset <- "Tong_Periapical_Granuloma"
+Tong_Periapical_Granuloma@meta.data$Tissue <- "Periapical Tissue"
+Tong_Periapical_Granuloma@meta.data$Extraction <- "Mandible Posterior Teeth Left"
+Tong_Periapical_Granuloma@meta.data$Species <- "Human"
+Tong_Periapical_Granuloma@meta.data$Age <- "27"
+Tong_Periapical_Granuloma@meta.data$Conditon <- "Periapical Granuloma"
+Tong_Periapical_Granuloma@meta.data$Technology <- "10X"
+```
 
