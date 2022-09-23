@@ -2699,10 +2699,156 @@ seu$Annotation <- Idents(seu)
 
 ## Healthy HTA subclustering of dental epithelium
 
-### xxx
+```
+epithelium <- subset(x = seu, idents = c("Epithelial", "Cycling cells"))
+DefaultAssay(epithelium) <- "SoupX"
+```
 
-### xxx
+Integration doesn't work because there are too few cells per dataset. Instead we will merge several together. Combined as follows:
+- Pagella_Periodontal
+- All others
 
+```
+ents(epithelium) <- epithelium@meta.data$Dataset_merged
+
+epithelium <- RenameIdents(epithelium, `Hemeryck_Dental_Follicle` = "Group1", `Krivanek_Apical_Papilla` = "Group1", 
+                    `Krivanek_Whole_Molar` = "Group1", `Pagella_Periodontal` = "Group2",
+                    `Pagella_Pulp` = "Group1", `Yin_Healthy` = "Group1", `Song_Tooth_Germ` = "Group1")
+
+epithelium@meta.data$Integration_Groups <- Idents(epithelium)
+```
+
+```
+tooth.list <- SplitObject(epithelium, split.by = "Integration_Groups")
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+})
+```
+
+```
+features <- SelectIntegrationFeatures(object.list = tooth.list)
+tooth.list <- lapply(X = tooth.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE, npcs = 30, approx = FALSE) # approx = false for small datasets; see: https://github.com/satijalab/seurat/issues/1963
+})
+```
+
+```
+# Perform integration
+tooth.anchors <- FindIntegrationAnchors(object.list = tooth.list, dims = 1:30, anchor.features = features, reduction = "rpca")
+integrated <- IntegrateData(anchorset = tooth.anchors, dims = 1:30)
+```
+
+```
+# switch to integrated assay. The variable features of this assay are automatically set during IntegrateData
+DefaultAssay(integrated) <- "integrated"
+```
+
+```
+# Run the standard workflow for visualization and clustering
+integrated <- ScaleData(integrated, verbose = FALSE)
+integrated <- RunPCA(integrated, verbose = FALSE)
+```
+
+```
+# Run UMAP for different dimensions, save to object separately to be able to go back
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:10)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_10dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP10_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:20)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_20dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP20_", assay = DefaultAssay(integrated))
+
+integrated <- RunUMAP(integrated, umap.method = "umap-learn", dims = 1:30)
+umap_dims <- integrated@reductions$umap@cell.embeddings
+integrated[["umap_30dims"]] <- CreateDimReducObject(embeddings = umap_dims, key = "UMAP30_", assay = DefaultAssay(integrated))
+```
+
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "Dataset_merged") +ggtitle("umap_10dims")
+p2 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "Dataset_merged") +ggtitle("umap_20dims")
+p2 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "Dataset_merged") +ggtitle("umap_30dims")
+p2 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "Tissue", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+```
+
+```
+options(repr.plot.width=20, repr.plot.height=7)
+
+p1 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "Integration_Groups") +ggtitle("umap_10dims")
+p2 <- DimPlot(integrated, reduction = "umap_10dims", group.by = "integrated_snn_res.5", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+p1 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "Integration_Groups") +ggtitle("umap_20dims")
+p2 <- DimPlot(integrated, reduction = "umap_20dims", group.by = "integrated_snn_res.5", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+
+options(repr.plot.width=20, repr.plot.height=7)
+p1 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "Integration_Groups") +ggtitle("umap_30dims")
+p2 <- DimPlot(integrated, reduction = "umap_30dims", group.by = "integrated_snn_res.5", label = TRUE, 
+    repel = TRUE)
+plot_grid(p1, p2)
+```
+
+We continue with dims = 30 
+
+```
+# Perform subclustering 
+DefaultAssay(integrated) <- "integrated" #needs to be set to integrated because this is what we ran PCA on
+integrated <- FindNeighbors(integrated, dims = 1:30)
+integrated <- FindClusters(integrated, resolution = c(0.2, 0.3, 0.6, 0.9, 1.2))
+```
+
+```
+resolution <- c('integrated_snn_res.0.2', "integrated_snn_res.0.3", "integrated_snn_res.0.6", "integrated_snn_res.0.9", "integrated_snn_res.1.2")
+suppressMessages({
+plot.list <- list()
+for (i in 1:length(resolution)) {
+    options(repr.plot.width=7, repr.plot.height=5)
+    plot.list[[i]] <- DimPlot(integrated, reduction = "umap_30dims", group.by = resolution[i], label = TRUE) +
+        ggtitle(paste(resolution[i], sep = ""))
+    print(plot.list[[i]])
+}
+    })
+```
+
+We continue with res = 1.2
+
+```
+Idents(integrated) <- integrated@meta.data$integrated_snn_res.1.2
+integrated <- RenameIdents(integrated, `0` = "JE", `1` = "Pulp-Epi", `2` = "Perio-ERM",
+                              `3` = "JE", `4` = "DF-ERM", `5` = "Perio-ERM",
+                              `6` = "AP-EMT", `7` = "AP-Epi")
+integrated@meta.data$epithelial <- Idents(integrated)
+```
+
+### DEG analysis of dental epithelial subclusters
+
+```
+DefaultAssay(integrated) <- "SoupX"
+all.markers <- FindAllMarkers(object = integrated, logfc.threshold = 0.25, min.pct = 0.25)
+```
+
+### Analysis of GRNs using pySCENIC
+
+xxx
 
 ## Diseased HTA setup 
 
